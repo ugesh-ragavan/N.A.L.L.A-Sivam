@@ -1,0 +1,41 @@
+# CONTEXT.md: NALLA SIVAM Master Architecture & Constraints
+
+- **Project:** NALLA SIVAM, Why.axis ecosystem.
+- **Owner:** Ugesh (comfortable with Python).
+- **Hardware Profile:**
+  - Dev Machine: Intel i7, 16 GB RAM, 4 GB GPU.
+  - OS: Windows (dev environment).
+  - Portability Target: Raspberry Pi 5. The application **MUST** run on CPU only and remain 100% portable across OS platforms.
+  - Portability Constraints: No OS-specific paths, no hardcoded system calls. All configurations load dynamically through `.env` and `settings.json`.
+- **MVP v1 Scope:**
+  - Voice Interaction: Wake word / push-to-talk, speech-to-text (`faster-whisper`), text-to-speech (`edge-tts` & `piper`).
+  - Reasoning: Google Gemini Free Tier (`google-genai` SDK).
+  - Web UI: Localhost dashboard (`FastAPI` + vanilla JS/HTML, zero build step) bound strictly to `127.0.0.1`.
+  - Local Memory: Local SQLite with FTS5 search.
+  - IoT Link: ESP32 & NodeMCU ESP8266 control and telemetry over MQTT (`paho-mqtt` / Mosquitto).
+- **Core Technology Stack:**
+  - Python 3.11+
+  - Web: FastAPI + Uvicorn
+  - Storage: SQLite (FTS5 enabled)
+  - LLM: `google-genai` SDK (Gemini Free Tier)
+  - Audio: `faster-whisper`, `sounddevice`, `edge-tts`, `piper-tts`, `webrtcvad` / `silero-vad`
+  - IoT: `paho-mqtt`
+- **Architectural Rules:**
+  - LLM, STT, TTS, and Wake-word engines each sit behind an abstract interface to allow swapping providers via configuration without modifying application logic.
+- **Safety & Verification Rules:**
+  - **Honesty Rule:** Never claim an action succeeded unless the underlying tool or physical hardware device confirms it (`ok: true`).
+  - **Risk Tiers:**
+    - 🟢 `GREEN`: Low risk, automated execution (e.g., read sensor, get time).
+    - 🟡 `AMBER`: Prompts user approval before running (e.g., toggle relays, delete memories).
+    - 🔴 `RED`: Explicit step-by-step confirmation every time.
+  - **No Fabrication:** Never hallucinate or invent memories, sources, or tool results.
+  - **Network Boundary:** Dashboard binds strictly to `127.0.0.1`.
+  - **Secrets:** API keys and sensitive tokens live in `.env` only, never logged, and masked in UI/API responses.
+- **Code Standards:**
+  - Type hints across all modules.
+  - Small, modular files with clear docstrings.
+  - Use Python's standard `logging` module (no `print` statements in core code).
+  - Comprehensive `pytest` test suite for non-trivial logic.
+  - Every phase leaves the repository in a clean, runnable state.
+- **Explicitly Out of Scope for v1:**
+  - Multi-agent networks, external vector databases, cloud hosting/SaaS, mobile applications, computer vision/cameras, and multi-user authentication.
