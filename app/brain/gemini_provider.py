@@ -64,14 +64,14 @@ class GeminiProvider(LLMProvider):
         config          = {}
         if system_prompt:
             config["system_instruction"] = system_prompt
+        if gemini_tools:
+            config["tools"] = gemini_tools
 
         last_exc: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
                 kwargs: dict[str, Any] = {"model": self._model, "contents": gemini_contents}
-                if gemini_tools:
-                    kwargs["tools"] = gemini_tools
-                if system_prompt:
+                if config:
                     kwargs["config"] = config
 
                 response = client.models.generate_content(**kwargs)
@@ -164,32 +164,31 @@ class GeminiProvider(LLMProvider):
 # Schema / message translation helpers
 # ---------------------------------------------------------------------------
 
-def _messages_to_gemini(messages: list[Message]) -> list[dict[str, Any]]:
+def _messages_to_gemini(messages: list[Message]) -> list[Any]:
     """Convert our generic Message list to Gemini ``contents`` format."""
     contents = []
     for msg in messages:
+        if "_raw_content" in msg and msg["_raw_content"] is not None:
+            contents.append(msg["_raw_content"])
+            continue
+
         role = msg.get("role", "user")
         content = msg.get("content", "")
 
-        # Gemini uses "model" for assistant turns.
-        if role == "assistant":
-            role = "model"
-
         # Tool result messages are sent as user turns with function responses.
         if role == "tool":
-            tool_call_id = msg.get("tool_call_id", "")
             contents.append({
                 "role": "user",
                 "parts": [{
                     "function_response": {
-                        "id":   tool_call_id,
                         "name": msg.get("name", ""),
-                        "response": {"content": content},
+                        "response": {"result": content},
                     }
                 }],
             })
         else:
-            contents.append({"role": role, "parts": [{"text": str(content)}]})
+            gemini_role = "model" if role == "assistant" else "user"
+            contents.append({"role": gemini_role, "parts": [{"text": str(content)}]})
 
     return contents
 
@@ -198,14 +197,15 @@ def _tools_to_gemini(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert our generic tool schemas to Gemini FunctionDeclaration format."""
     declarations = []
     for t in tools:
-        declarations.append({
-            "function_declarations": [{
-                "name":        t["name"],
-                "description": t.get("description", ""),
-                "parameters":  t.get("parameters", {}),
-            }]
-        })
-    return declarations
+        fd: dict[str, Any] = {
+            "name": t["name"],
+            "description": t.get("description", ""),
+        }
+        params = t.get("parameters", {})
+        if params and params.get("properties"):
+            fd["parameters"] = params
+        declarations.append(fd)
+    return [{"function_declarations": declarations}]
 
 
 def _parse_response(response: Any) -> LLMResponse:
@@ -260,7 +260,13 @@ def _parse_response(response: Any) -> LLMResponse:
         )
 
     text = "".join(text_parts)
-    return LLMResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason)
+    raw_content = getattr(candidate, "content", None)
+    return LLMResponse(
+        text=text,
+        tool_calls=tool_calls,
+        finish_reason=finish_reason,
+        raw_content=raw_content,
+    )
 
 
 def _friendly_error(exc: Exception | None) -> str:

@@ -137,6 +137,7 @@ class Agent:
                     {"id": tc.id, "name": tc.name, "args": tc.args}
                     for tc in response.tool_calls
                 ],
+                "_raw_content": response.raw_content,
             })
             loop_messages.extend(tool_result_messages)
 

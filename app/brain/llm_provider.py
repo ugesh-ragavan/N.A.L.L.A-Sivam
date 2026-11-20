@@ -56,6 +56,7 @@ class LLMResponse:
     text:          str               = ""
     tool_calls:    list[ToolCall]    = field(default_factory=list)
     finish_reason: str               = "stop"
+    raw_content:   Any               = None
 
     # Convenience helpers --------------------------------------------------
 
