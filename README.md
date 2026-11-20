@@ -19,8 +19,8 @@ Listens, reasons with Google Gemini, talks back, remembers locally in SQLite, an
 
 ## 📖 The Name & Inspiration
 
-- **NALLA (நல்ல):** "Good" in Tamil. It serves as the wake word (*"Nalla!"* &rarr; *"Yes boss, sollunga!"*). As an acronym: **N**ot **A**nother **L**ame **L**ogical **A**ssistant.
-- **SIVAM (சிவம்):** Auspicious, good. Inspired by the spirit of the film *Anbe Sivam* (2003): goodness is demonstrated through actions, honesty, attention, and reliability — never false flattery or simulated feelings.
+- **NALLA (நல்ல):** "Good" in Tamil. It serves as the wake word (*"Nalla!"* &rarr; *"Yes boss, sollunga!"*). As an acronym: **N**ot **A**nother **L**ame **L**ogical **A**ssistant. No robotic, customer-support voice.
+- **SIVAM (சிவம்):** Auspicious, good. Acronym: **S**iripudan **I**nidhaai **V**azhum **A**nbu **M**anidhan (*"the loving person who lives sweetly with a smile"*). Inspired by the spirit of the film *Anbe Sivam* (2003): goodness is demonstrated through actions, honesty, attention, and reliability — never false flattery or simulated feelings.
 
 ---
 
