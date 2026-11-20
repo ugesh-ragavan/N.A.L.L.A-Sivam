@@ -14,9 +14,12 @@ Tagline options (pick one for the README and splash screen):
 
 ## 2. The name
 
+The name - NALLA SiVaM
+not a lame logical assistant, siripudam inidhaai vazhum anbu manidhan
+
 **NALLA** (நல்ல) means "good" in Tamil. It is also the wake word: say *"Nalla!"* and the reply is *"Yes boss, sollunga!"* As an acronym it is the cheeky engineer's promise: **N**ot **A**nother **L**ame **L**ogical **A**ssistant. No robotic, customer-support voice.
 
-**SIVAM** (சிவம்) is the Tamil word linked to Shiva, and it carries the sense of "auspicious, good". Acronym: **S**iripudan **I**nidhaai **V**azhum **A**nbu **M**anidhan ("the loving person who lives sweetly with a smile").
+**SIVAM** (சிவம்) is the Tamil word linked to Shiva, and it carries the sense of "auspicious, good". 
 
 **Inspiration: the film *Anbe Sivam* (2003).** Its hero, Nallasivam (played by Kamal Haasan), is a warm, principled activist who travels with a cynical young ad filmmaker, Anbarasu, and shows him through actions, not lectures, that goodness is simply how you treat people. The title is commonly translated as "love is God". Nalla Sivam the assistant borrows that spirit, not a pretence of feelings: care shown through attention, honesty and reliability.
 
