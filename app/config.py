@@ -65,3 +65,6 @@ MQTT_HOST: str = _require("MQTT_HOST", "localhost")
 MQTT_PORT: int = _int_env("MQTT_PORT", 1883)
 MQTT_USER: str = _require("MQTT_USER", "")
 MQTT_PASSWORD: str = _require("MQTT_PASSWORD", "")
+
+# Phase 3: Memory setting
+MEMORY_ENABLED: bool = _require("MEMORY_ENABLED", "true").lower() in ("true", "1", "yes")

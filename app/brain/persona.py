@@ -45,7 +45,11 @@ class Persona:
     # Public API
     # ------------------------------------------------------------------
 
-    def build_system_prompt(self, tool_summary: str = "(no tools connected)") -> str:
+    def build_system_prompt(
+        self,
+        tool_summary: str = "(no tools connected)",
+        memory_context: str = "",
+    ) -> str:
         """Return the full system prompt for one LLM call.
 
         Hot-reloads the persona file if it has been modified on disk.
@@ -53,15 +57,23 @@ class Persona:
         Parameters
         ----------
         tool_summary: One-line-per-tool description from ToolRegistry.summary().
+        memory_context: Top retrieved relevant memories for the current turn.
         """
         self._reload_if_changed()
         now = datetime.now().strftime("%A, %d %B %Y, %H:%M:%S")
-        return (
+        prompt = (
             f"{self._cached_text}\n\n"
             f"---\n"
             f"Current date/time: {now}\n\n"
             f"Currently connected tools:\n{tool_summary}\n"
         )
+        if memory_context.strip():
+            prompt += (
+                f"\n## Known about the user (may be outdated)\n"
+                f"{memory_context.strip()}\n\n"
+                f"Rule: if a memory or fact is not in this list, say you don't remember it. Never fabricate memories.\n"
+            )
+        return prompt
 
     @property
     def path(self) -> Path:

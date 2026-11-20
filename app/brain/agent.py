@@ -22,6 +22,7 @@ from app.brain.llm_provider import LLMProvider, LLMResponse, Message, ToolCall
 from app.brain.tools import ToolRegistry, ToolResult
 from app.brain.persona import Persona
 from app.core.approvals import ApprovalManager, RiskLevel
+from app.memory.store import MemoryStore
 
 logger = logging.getLogger("nalla.agent")
 
@@ -33,10 +34,12 @@ class Agent:
 
     Parameters
     ----------
-    provider:  An LLMProvider implementation (Gemini, Fake, etc.).
-    registry:  The ToolRegistry that holds all callable tools.
-    persona:   Persona instance that builds the system prompt.
-    approvals: ApprovalManager that gates AMBER / RED tool calls.
+    provider:       An LLMProvider implementation (Gemini, Fake, etc.).
+    registry:       The ToolRegistry that holds all callable tools.
+    persona:        Persona instance that builds the system prompt.
+    approvals:      ApprovalManager that gates AMBER / RED tool calls.
+    store:          Optional MemoryStore for memory injection and recall.
+    memory_enabled: If False, memories are neither searched nor injected.
     """
 
     def __init__(
@@ -45,11 +48,15 @@ class Agent:
         registry:  ToolRegistry,
         persona:   Persona,
         approvals: ApprovalManager,
+        store:     MemoryStore | None = None,
+        memory_enabled: bool = True,
     ) -> None:
-        self._provider  = provider
-        self._registry  = registry
-        self._persona   = persona
-        self._approvals = approvals
+        self._provider       = provider
+        self._registry       = registry
+        self._persona        = persona
+        self._approvals      = approvals
+        self._store          = store
+        self._memory_enabled = memory_enabled
 
     # ------------------------------------------------------------------
     # Public API
@@ -68,8 +75,30 @@ class Agent:
         The agent's final text reply (never empty — an error message
         is returned instead of raising an exception to the UI).
         """
+        # Memory injection: search relevant memories for the latest user message
+        memory_context = ""
+        if self._memory_enabled and self._store and messages:
+            user_text = ""
+            for msg in reversed(messages):
+                if msg.get("role") == "user":
+                    user_text = msg.get("content", "")
+                    break
+
+            if user_text:
+                try:
+                    recalled = self._store.search_memories(user_text, limit=5)
+                    if recalled:
+                        lines = [
+                            f"- [{m.get('category', 'fact')}, imp:{m.get('importance', 3)}] {m.get('text')} (ID: {m.get('id')})"
+                            for m in recalled
+                        ]
+                        memory_context = "\n".join(lines)
+                except Exception as exc:
+                    logger.warning("Failed to recall memories for query: %s", exc)
+
         system_prompt = self._persona.build_system_prompt(
-            tool_summary=self._registry.summary()
+            tool_summary=self._registry.summary(),
+            memory_context=memory_context,
         )
         tool_schemas = self._registry.as_schema()
 

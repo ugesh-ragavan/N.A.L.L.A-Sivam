@@ -16,7 +16,8 @@ import logging
 import sys
 
 from app.core.logging_setup import setup_logging
-from app.config import GEMINI_MODEL, WEB_HOST, WEB_PORT
+from app.config import GEMINI_MODEL, WEB_HOST, WEB_PORT, MEMORY_ENABLED
+from app.memory.store import store
 
 BANNER = r"""
   _   _    _    _     _        _      ____ _____     ___    __  __ 
@@ -37,7 +38,7 @@ def _print_banner(logger: logging.Logger) -> None:
 
 
 def _build_agent():
-    """Construct and return a ready-to-use Agent."""
+    """Construct and return a ready-to-use Agent with memory store attached."""
     from app.brain.gemini_provider import GeminiProvider
     from app.brain.tools import registry
     from app.brain.persona import persona
@@ -46,17 +47,64 @@ def _build_agent():
 
     provider  = GeminiProvider()
     approvals = ApprovalManager()          # uses terminal callback by default
-    return Agent(provider, registry, persona, approvals)
+    return Agent(
+        provider,
+        registry,
+        persona,
+        approvals,
+        store=store,
+        memory_enabled=MEMORY_ENABLED,
+    )
+
+
+def _start_reminders_scheduler() -> None:
+    """Start the reminders background worker on a daemon thread."""
+    import asyncio
+    import threading
+    from app.memory.scheduler import reminders_loop
+
+    def _worker():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                reminders_loop(
+                    callback=lambda r: print(
+                        f"\n\a[REMINDER]: {r['text']} (due {r['due_at']})\nYou: ",
+                        end="",
+                        flush=True,
+                    ),
+                    interval=30.0,
+                    store_instance=store,
+                )
+            )
+        except Exception as exc:
+            logging.getLogger("nalla.memory.scheduler").warning("Reminders loop exited: %s", exc)
+
+    thread = threading.Thread(target=_worker, daemon=True, name="RemindersScheduler")
+    thread.start()
 
 
 def _run_chat() -> None:
-    """Interactive terminal chat loop."""
+    """Interactive terminal chat loop with persisted history across restarts."""
     logger = logging.getLogger("nalla")
     _print_banner(logger)
-    logger.info("Phase 1 chat started. Type 'exit' or 'quit' to leave.")
+    logger.info("Phase 3 chat started. Type 'exit' or 'quit' to leave.")
+
+    # Start reminders scheduler in background
+    _start_reminders_scheduler()
 
     agent = _build_agent()
+    session_id = "default"
     history: list[dict] = []
+
+    # Restore persisted conversation history from SQLite
+    persisted_turns = store.get_messages(session_id, limit=MAX_HISTORY * 2)
+    for msg in persisted_turns:
+        history.append({"role": msg["role"], "content": msg["text"]})
+
+    if history:
+        logger.info("Loaded %d previous message turns from memory.", len(history))
 
     # UI hint (print is intentional here — it's a terminal UI)
     print("\n" + "="*60)
@@ -77,10 +125,14 @@ def _run_chat() -> None:
             print("Nalla: Take care, boss. Bye!")
             break
 
+        # Persist user turn
+        store.save_message(session_id, "user", user_input)
+
         # Wake-word fast path — no LLM call needed.
         if user_input.strip().rstrip("!").lower() == "nalla":
             reply = "Yes boss, sollunga!"
             print(f"Nalla: {reply}\n")
+            store.save_message(session_id, "assistant", reply)
             history.append({"role": "user",      "content": user_input})
             history.append({"role": "assistant",  "content": reply})
             history = history[-(MAX_HISTORY * 2):]
@@ -95,6 +147,8 @@ def _run_chat() -> None:
             logger.exception("Unexpected error in agent.chat")
             reply = f"(Something went wrong: {exc})"
 
+        # Persist assistant reply
+        store.save_message(session_id, "assistant", reply)
         history.append({"role": "assistant", "content": reply})
 
         # Cap history (each turn = 2 messages: user + assistant).
@@ -116,14 +170,20 @@ def main() -> None:
         logger.info("Initializing NALLA SIVAM...")
         logger.info("Model   : %s", GEMINI_MODEL)
         logger.info("Dashboard bound to %s:%d", WEB_HOST, WEB_PORT)
-        logger.info("Phase 1 ready. Run `python -m app chat` to start chatting.")
+        logger.info("Phase 3 ready. Run `python -m app chat` or `python -m app dashboard`.")
         return
 
     if args[0] == "chat":
         _run_chat()
         return
 
-    logger.error("Unknown command: %s. Available: chat", args[0])
+    if args[0] in ("dashboard", "web"):
+        from app.web.server import run_server
+        _print_banner(logger)
+        run_server()
+        return
+
+    logger.error("Unknown command: %s. Available: chat, dashboard", args[0])
     sys.exit(1)
 
 
