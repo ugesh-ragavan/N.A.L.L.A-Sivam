@@ -36,14 +36,18 @@ env/
 *.env
 !.env.example
 
-# Local SQLite databases & logs
-*.db
-*.sqlite
-*.sqlite3
-logs/
+# Local SQLite databases
+data/nalla.db
+data/*.sqlite
+
+# Settings file (Phase 2+) — may contain sensitive preferences
+data/settings.json
+
+# Log files
+data/logs/
 *.log
 
-# Audio temp / models cache
+# Audio temp / model caches
 models/
 piper_models/
 *.wav
@@ -54,3 +58,6 @@ piper_models/
 .idea/
 .DS_Store
 Thumbs.db
+
+# pytest cache
+.pytest_cache/
