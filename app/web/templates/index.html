@@ -129,6 +129,20 @@
     }
     .btn-outline:hover { background: var(--border); color: var(--text-bright); }
 
+    .mode-btn {
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .mode-btn.active {
+      background: var(--purple);
+      color: #fff;
+      border-color: var(--purple);
+      font-weight: 600;
+    }
+
     /* Voice state indicator styles */
     .voice-status-pill {
       display: inline-flex;
@@ -355,6 +369,79 @@
       <span>LLM 1st Token: <b id="m-llm">—</b></span>
       <span>TTS 1st Audio: <b id="m-tts">—</b></span>
       <span>Total Turn: <b id="m-total">—</b></span>
+    </div>
+  </div>
+
+  <!-- Personality & Persona Control Card -->
+  <div class="card" style="border-left: 4px solid var(--purple);">
+    <div class="card-title">
+      <span>🎭 Personality & Persona Controls</span>
+      <span id="active-mode-badge" class="badge badge-project">Friend Mode</span>
+    </div>
+
+    <!-- Mode preset buttons -->
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px;">PRESET MODES</div>
+      <div class="toolbar" style="margin-bottom: 0;">
+        <button type="button" class="btn btn-outline mode-btn active" id="btn-mode-Friend" onclick="selectPreset('Friend')">🤝 Friend</button>
+        <button type="button" class="btn btn-outline mode-btn" id="btn-mode-Jarvis" onclick="selectPreset('Jarvis')">🤖 Jarvis</button>
+        <button type="button" class="btn btn-outline mode-btn" id="btn-mode-Focus" onclick="selectPreset('Focus')">🎯 Focus</button>
+        <button type="button" class="btn btn-outline mode-btn" id="btn-mode-Engineer" onclick="selectPreset('Engineer')">⚡ Engineer</button>
+      </div>
+    </div>
+
+    <!-- Sliders Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+      <!-- Sarcasm -->
+      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <label style="font-size: 0.85rem; font-weight: 600;">Sarcasm</label>
+          <span id="val-sarcasm" style="font-size: 0.85rem; color: var(--accent);">7/10</span>
+        </div>
+        <input type="range" id="slider-sarcasm" min="0" max="10" step="1" value="7" style="width: 100%; cursor: pointer;" oninput="onSliderChange()">
+      </div>
+
+      <!-- Warmth -->
+      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <label style="font-size: 0.85rem; font-weight: 600;">Warmth</label>
+          <span id="val-warmth" style="font-size: 0.85rem; color: var(--green);">8/10</span>
+        </div>
+        <input type="range" id="slider-warmth" min="0" max="10" step="1" value="8" style="width: 100%; cursor: pointer;" oninput="onSliderChange()">
+      </div>
+
+      <!-- Tamil mix -->
+      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <label style="font-size: 0.85rem; font-weight: 600;">Tamil mix</label>
+          <span id="val-tamil" style="font-size: 0.85rem; color: #ffa657;">40%</span>
+        </div>
+        <input type="range" id="slider-tamil" min="0" max="100" step="5" value="40" style="width: 100%; cursor: pointer;" oninput="onSliderChange()">
+      </div>
+
+      <!-- Verbosity -->
+      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <label style="font-size: 0.85rem; font-weight: 600;">Verbosity</label>
+          <span id="val-verbosity" style="font-size: 0.85rem; color: var(--purple);">very short</span>
+        </div>
+        <select id="select-verbosity" style="width: 100%;" onchange="onSliderChange()">
+          <option value="very short" selected>very short</option>
+          <option value="short">short</option>
+          <option value="balanced">balanced</option>
+          <option value="detailed">detailed</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Live Injected Line Preview -->
+    <div style="background: #13171f; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;">
+      <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px;">System Prompt Injected Line:</div>
+      <code id="prompt-line-preview" style="color: var(--accent); font-size: 0.9rem;">Sarcasm: 7/10. Warmth: 8/10. Tamil mix: 40%. Replies: very short.</code>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn btn-purple" onclick="savePersonality()">💾 Apply & Save Personality</button>
     </div>
   </div>
 
@@ -647,6 +734,118 @@
       }
     }
 
+    // ---------------------------------------------------------------
+    // Personality Functions
+    // ---------------------------------------------------------------
+    let currentModes = {
+      "Friend": { sarcasm: 7, warmth: 8, tamil_mix: 40, verbosity: "very short" },
+      "Jarvis": { sarcasm: 3, warmth: 6, tamil_mix: 10, verbosity: "short" },
+      "Focus": { sarcasm: 1, warmth: 4, tamil_mix: 0, verbosity: "very short" },
+      "Engineer": { sarcasm: 5, warmth: 5, tamil_mix: 20, verbosity: "balanced" }
+    };
+    let activeMode = "Friend";
+
+    async function loadPersonality() {
+      try {
+        const res = await fetch("/api/personality");
+        const data = await res.json();
+        if (data.modes) currentModes = data.modes;
+        activeMode = data.mode || "Friend";
+
+        document.getElementById("slider-sarcasm").value = data.sarcasm;
+        document.getElementById("slider-warmth").value = data.warmth;
+        document.getElementById("slider-tamil").value = data.tamil_mix;
+        document.getElementById("select-verbosity").value = data.verbosity;
+
+        updatePersonalityUI(activeMode);
+      } catch (err) {
+        console.error("Failed to load personality settings", err);
+      }
+    }
+
+    function selectPreset(mode) {
+      activeMode = mode;
+      const preset = currentModes[mode];
+      if (preset) {
+        document.getElementById("slider-sarcasm").value = preset.sarcasm;
+        document.getElementById("slider-warmth").value = preset.warmth;
+        document.getElementById("slider-tamil").value = preset.tamil_mix;
+        document.getElementById("select-verbosity").value = preset.verbosity;
+      }
+      updatePersonalityUI(mode);
+    }
+
+    function onSliderChange() {
+      const s = parseInt(document.getElementById("slider-sarcasm").value, 10);
+      const w = parseInt(document.getElementById("slider-warmth").value, 10);
+      const t = parseInt(document.getElementById("slider-tamil").value, 10);
+      const v = document.getElementById("select-verbosity").value;
+
+      let matchedMode = "Custom";
+      for (const [mName, mConfig] of Object.entries(currentModes)) {
+        if (mConfig.sarcasm === s && mConfig.warmth === w && mConfig.tamil_mix === t && mConfig.verbosity === v) {
+          matchedMode = mName;
+          break;
+        }
+      }
+      activeMode = matchedMode;
+      updatePersonalityUI(matchedMode);
+    }
+
+    function updatePersonalityUI(mode) {
+      const s = document.getElementById("slider-sarcasm").value;
+      const w = document.getElementById("slider-warmth").value;
+      const t = document.getElementById("slider-tamil").value;
+      const v = document.getElementById("select-verbosity").value;
+
+      document.getElementById("val-sarcasm").innerText = `${s}/10`;
+      document.getElementById("val-warmth").innerText = `${w}/10`;
+      document.getElementById("val-tamil").innerText = `${t}%`;
+      document.getElementById("val-verbosity").innerText = v;
+
+      // Update active preset button highlight
+      document.querySelectorAll(".mode-btn").forEach(btn => btn.classList.remove("active"));
+      const activeBtn = document.getElementById(`btn-mode-${mode}`);
+      if (activeBtn) activeBtn.classList.add("active");
+
+      // Update badge
+      const badge = document.getElementById("active-mode-badge");
+      badge.innerText = `${mode} Mode`;
+
+      // Live injected preview
+      const preview = `Sarcasm: ${s}/10. Warmth: ${w}/10. Tamil mix: ${t}%. Replies: ${v}.`;
+      document.getElementById("prompt-line-preview").innerText = preview;
+    }
+
+    async function savePersonality() {
+      const s = parseInt(document.getElementById("slider-sarcasm").value, 10);
+      const w = parseInt(document.getElementById("slider-warmth").value, 10);
+      const t = parseInt(document.getElementById("slider-tamil").value, 10);
+      const v = document.getElementById("select-verbosity").value;
+
+      try {
+        const res = await fetch("/api/personality", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: activeMode,
+            sarcasm: s,
+            warmth: w,
+            tamil_mix: t,
+            verbosity: v
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(`Personality updated (${activeMode} mode)`);
+        } else {
+          showToast(data.detail || "Error saving personality");
+        }
+      } catch (err) {
+        showToast("Network error saving personality");
+      }
+    }
+
     async function loadMemories() {
       const q = document.getElementById("search-input").value;
       const cat = document.getElementById("filter-cat").value;
@@ -837,6 +1036,7 @@
     initVoiceWebSocket();
     loadAudioDevices();
     loadSettings();
+    loadPersonality();
     loadMemories();
     loadReminders();
   </script>

@@ -80,6 +80,14 @@ class SettingsUpdate(BaseModel):
     memory_enabled: bool
 
 
+class PersonalityUpdate(BaseModel):
+    mode: str = "Friend"
+    sarcasm: int = Field(7, ge=0, le=10)
+    warmth: int = Field(8, ge=0, le=10)
+    tamil_mix: int = Field(40, ge=0, le=100)
+    verbosity: str = "very short"
+
+
 class MuteRequest(BaseModel):
     muted: bool
 
@@ -340,7 +348,7 @@ def mark_reminder_completed(reminder_id: int) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Settings API Endpoints
+# Settings & Personality API Endpoints
 # ---------------------------------------------------------------------------
 
 @app.get("/api/settings")
@@ -357,6 +365,14 @@ def get_settings() -> dict[str, Any]:
         "tts_voice": config.TTS_VOICE,
         "tts_voice_ta": config.TTS_VOICE_TA,
         "wake_word_engine": config.WAKE_WORD_ENGINE,
+        "personality": {
+            "mode": config.PERSONALITY_MODE,
+            "sarcasm": config.PERSONALITY_SARCASM,
+            "warmth": config.PERSONALITY_WARMTH,
+            "tamil_mix": config.PERSONALITY_TAMIL_MIX,
+            "verbosity": config.PERSONALITY_VERBOSITY,
+            "prompt_line": config.get_personality_prompt_line(),
+        },
     }
 
 
@@ -364,8 +380,45 @@ def get_settings() -> dict[str, Any]:
 def update_settings(item: SettingsUpdate) -> dict[str, Any]:
     """Toggle memory on or off."""
     config.MEMORY_ENABLED = item.memory_enabled
+    config.save_persisted_settings()
     logger.info("Setting memory_enabled updated to %s", item.memory_enabled)
     return {"ok": True, "memory_enabled": config.MEMORY_ENABLED}
+
+
+@app.get("/api/personality")
+def get_personality() -> dict[str, Any]:
+    """Return current personality configuration and available preset modes."""
+    return {
+        "mode": config.PERSONALITY_MODE,
+        "sarcasm": config.PERSONALITY_SARCASM,
+        "warmth": config.PERSONALITY_WARMTH,
+        "tamil_mix": config.PERSONALITY_TAMIL_MIX,
+        "verbosity": config.PERSONALITY_VERBOSITY,
+        "prompt_line": config.get_personality_prompt_line(),
+        "modes": config.PERSONALITY_MODES,
+    }
+
+
+@app.post("/api/personality")
+def update_personality(item: PersonalityUpdate) -> dict[str, Any]:
+    """Update personality sliders and mode."""
+    config.PERSONALITY_MODE = item.mode
+    config.PERSONALITY_SARCASM = item.sarcasm
+    config.PERSONALITY_WARMTH = item.warmth
+    config.PERSONALITY_TAMIL_MIX = item.tamil_mix
+    config.PERSONALITY_VERBOSITY = item.verbosity
+    config.save_persisted_settings()
+    prompt_line = config.get_personality_prompt_line()
+    logger.info("Updated personality: %s", prompt_line)
+    return {
+        "ok": True,
+        "mode": config.PERSONALITY_MODE,
+        "sarcasm": config.PERSONALITY_SARCASM,
+        "warmth": config.PERSONALITY_WARMTH,
+        "tamil_mix": config.PERSONALITY_TAMIL_MIX,
+        "verbosity": config.PERSONALITY_VERBOSITY,
+        "prompt_line": prompt_line,
+    }
 
 
 # ---------------------------------------------------------------------------

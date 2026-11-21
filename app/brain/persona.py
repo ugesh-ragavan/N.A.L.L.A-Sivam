@@ -61,9 +61,12 @@ class Persona:
         """
         self._reload_if_changed()
         now = datetime.now().strftime("%A, %d %B %Y, %H:%M:%S")
+        from app import config
+        personality_line = config.get_personality_prompt_line()
         prompt = (
             f"{self._cached_text}\n\n"
             f"---\n"
+            f"{personality_line}\n\n"
             f"Current date/time: {now}\n\n"
             f"Currently connected tools:\n{tool_summary}\n"
         )

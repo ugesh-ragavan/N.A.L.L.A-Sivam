@@ -9,6 +9,7 @@ a clear message, before the logging system is even set up.
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -89,3 +90,94 @@ FOLLOW_UP_TIMEOUT: float = float(os.getenv("FOLLOW_UP_TIMEOUT", "30.0"))
 FOLLOW_UP_ENABLED: bool = os.getenv("FOLLOW_UP_ENABLED", "true").lower() in ("true", "1", "yes")
 VAD_AGGRESSIVENESS: int = _int_env("VAD_AGGRESSIVENESS", 2)
 VAD_ENERGY_THRESHOLD: float = float(os.getenv("VAD_ENERGY_THRESHOLD", "400.0"))
+
+# ------------------------------------------------------------------
+# Personality Settings & Modes
+# ------------------------------------------------------------------
+PERSONALITY_MODES: dict[str, dict[str, Any]] = {
+    "Friend": {
+        "sarcasm": 7,
+        "warmth": 8,
+        "tamil_mix": 40,
+        "verbosity": "very short",
+    },
+    "Jarvis": {
+        "sarcasm": 3,
+        "warmth": 6,
+        "tamil_mix": 10,
+        "verbosity": "short",
+    },
+    "Focus": {
+        "sarcasm": 1,
+        "warmth": 4,
+        "tamil_mix": 0,
+        "verbosity": "very short",
+    },
+    "Engineer": {
+        "sarcasm": 5,
+        "warmth": 5,
+        "tamil_mix": 20,
+        "verbosity": "balanced",
+    },
+}
+
+PERSONALITY_MODE: str = os.getenv("PERSONALITY_MODE", "Friend")
+PERSONALITY_SARCASM: int = _int_env("PERSONALITY_SARCASM", 7)
+PERSONALITY_WARMTH: int = _int_env("PERSONALITY_WARMTH", 8)
+PERSONALITY_TAMIL_MIX: int = _int_env("PERSONALITY_TAMIL_MIX", 40)
+PERSONALITY_VERBOSITY: str = os.getenv("PERSONALITY_VERBOSITY", "very short")
+
+SETTINGS_FILE = BASE_DIR / "data" / "settings.json"
+
+
+def get_personality_prompt_line() -> str:
+    """Format the personality line for injection into the system prompt."""
+    return (
+        f"Sarcasm: {PERSONALITY_SARCASM}/10. "
+        f"Warmth: {PERSONALITY_WARMTH}/10. "
+        f"Tamil mix: {PERSONALITY_TAMIL_MIX}%. "
+        f"Replies: {PERSONALITY_VERBOSITY}."
+    )
+
+
+def load_persisted_settings() -> None:
+    """Load settings from data/settings.json if it exists."""
+    global PERSONALITY_MODE, PERSONALITY_SARCASM, PERSONALITY_WARMTH, PERSONALITY_TAMIL_MIX, PERSONALITY_VERBOSITY, MEMORY_ENABLED
+    if not SETTINGS_FILE.exists():
+        return
+    try:
+        import json
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        if "personality" in data:
+            p = data["personality"]
+            PERSONALITY_MODE = p.get("mode", PERSONALITY_MODE)
+            PERSONALITY_SARCASM = int(p.get("sarcasm", PERSONALITY_SARCASM))
+            PERSONALITY_WARMTH = int(p.get("warmth", PERSONALITY_WARMTH))
+            PERSONALITY_TAMIL_MIX = int(p.get("tamil_mix", PERSONALITY_TAMIL_MIX))
+            PERSONALITY_VERBOSITY = str(p.get("verbosity", PERSONALITY_VERBOSITY))
+        if "memory_enabled" in data:
+            MEMORY_ENABLED = bool(data["memory_enabled"])
+    except Exception:
+        pass
+
+
+def save_persisted_settings() -> None:
+    """Save current settings to data/settings.json."""
+    import json
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "memory_enabled": MEMORY_ENABLED,
+        "personality": {
+            "mode": PERSONALITY_MODE,
+            "sarcasm": PERSONALITY_SARCASM,
+            "warmth": PERSONALITY_WARMTH,
+            "tamil_mix": PERSONALITY_TAMIL_MIX,
+            "verbosity": PERSONALITY_VERBOSITY,
+        },
+    }
+    SETTINGS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+# Attempt load at import time
+load_persisted_settings()
+
