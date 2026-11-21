@@ -55,6 +55,7 @@ piper_models/
 *.mp3
 
 # External reference archives
+reference/
 open sources/
 Javis open source/
 *.zip
