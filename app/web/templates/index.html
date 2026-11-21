@@ -3,1125 +3,697 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NALLA SIVAM — Dashboard</title>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --card-bg: #161b22;
-      --border: #30363d;
-      --text: #c9d1d9;
-      --text-bright: #f0f6fc;
-      --text-dim: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #1f6feb;
-      --green: #238636;
-      --green-hover: #2ea043;
-      --amber: #d29922;
-      --red: #da3633;
-      --red-hover: #f85149;
-      --purple: #8957e5;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      padding: 24px;
-    }
-
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 20px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-      color: var(--text-bright);
-      letter-spacing: 1px;
-    }
-
-    h1 span { color: var(--accent); }
-
-    .tagline {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    .badge-preference { background: #388bfd33; color: #58a6ff; }
-    .badge-fact { background: #2ea04333; color: #3fb950; }
-    .badge-project { background: #a371f733; color: #d2a8ff; }
-    .badge-person { background: #f0883e33; color: #ffa657; }
-    .badge-task { background: #d2992233; color: #e3b341; }
-
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 24px;
-    }
-
-    .card-title {
-      font-size: 1.15rem;
-      color: var(--text-bright);
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
-
-    input[type="text"], input[type="datetime-local"], select {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text-bright);
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      outline: none;
-    }
-
-    input[type="text"]:focus, select:focus {
-      border-color: var(--accent);
-    }
-
-    .btn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: background 0.15s;
-    }
-    .btn:hover { background: var(--accent-hover); }
-    .btn-green { background: var(--green); }
-    .btn-green:hover { background: var(--green-hover); }
-    .btn-red { background: var(--red); }
-    .btn-red:hover { background: var(--red-hover); }
-    .btn-purple { background: var(--purple); }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-    .btn-outline:hover { background: var(--border); color: var(--text-bright); }
-
-    .mode-btn {
-      padding: 6px 14px;
-      font-size: 0.85rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .mode-btn.active {
-      background: var(--purple);
-      color: #fff;
-      border-color: var(--purple);
-      font-weight: 600;
-    }
-
-    /* Voice state indicator styles */
-    .voice-status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      background: #30363d;
-      color: #fff;
-    }
-    .pulse-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    .status-idle { background: #23863633; color: #3fb950; }
-    .status-listening {
-      background: #1f6feb33;
-      color: #58a6ff;
-      animation: pulse-listening 1.5s infinite;
-    }
-    .status-transcribing { background: #d2992233; color: #e3b341; }
-    .status-thinking { background: #d2992233; color: #e3b341; }
-    .status-speaking {
-      background: #8957e533;
-      color: #d2a8ff;
-      animation: pulse-speaking 1.2s infinite;
-    }
-
-    @keyframes pulse-listening {
-      0% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.4); }
-      70% { box-shadow: 0 0 0 10px rgba(88, 166, 255, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0); }
-    }
-    @keyframes pulse-speaking {
-      0% { box-shadow: 0 0 0 0 rgba(163, 113, 247, 0.4); }
-      70% { box-shadow: 0 0 0 10px rgba(163, 113, 247, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(163, 113, 247, 0); }
-    }
-
-    .voice-console {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 14px;
-      min-height: 100px;
-      max-height: 200px;
-      overflow-y: auto;
-      font-family: monospace;
-      font-size: 0.88rem;
-      margin-top: 14px;
-    }
-
-    .metrics-bar {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      font-size: 0.8rem;
-      color: var(--text-dim);
-      padding: 8px 12px;
-      background: #13171f;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      margin-top: 10px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9rem;
-    }
-
-    th, td {
-      padding: 10px 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    th {
-      color: var(--text-dim);
-      font-weight: 600;
-      font-size: 0.8rem;
-      text-transform: uppercase;
-    }
-
-    tr:hover td {
-      background: #1f242c;
-    }
-
-    .actions-cell {
-      display: flex;
-      gap: 8px;
-    }
-
-    .inline-input {
-      width: 100%;
-      background: #0d1117;
-      border: 1px solid var(--accent);
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 4px;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr auto;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .reminder-grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr auto;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .switch-container {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 44px;
-      height: 24px;
-    }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: var(--border);
-      transition: .2s;
-      border-radius: 24px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 18px; width: 18px;
-      left: 3px; bottom: 3px;
-      background-color: white;
-      transition: .2s;
-      border-radius: 50%;
-    }
-    input:checked + .slider { background-color: var(--green); }
-    input:checked + .slider:before { transform: translateX(20px); }
-
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      padding: 12px 20px;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-bright);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
-    }
-    .toast.show { opacity: 1; }
-  </style>
+  <title>NALLA SIVAM — Control Center</title>
+  <link rel="stylesheet" href="/static/css/theme.css">
 </head>
-<body>
+<body data-theme="cyan">
 
-  <header>
-    <div>
-      <h1>NALLA <span>SIVAM</span></h1>
-      <div class="tagline">Not Another Lame Logical Assistant • Localhost Dashboard</div>
-    </div>
-    <div class="switch-container">
-      <span style="font-size: 0.9rem;">Memory:</span>
-      <label class="switch">
-        <input type="checkbox" id="memory-toggle" checked onchange="toggleMemory(this.checked)">
-        <span class="slider"></span>
-      </label>
-      <span id="memory-status" style="font-size: 0.85rem; color: var(--green);">ENABLED</span>
-    </div>
-  </header>
+  <!-- Ambient Cyber Grid Overlay -->
+  <div class="cyber-grid"></div>
 
-  <!-- Phase 4: Live Voice Control Panel -->
-  <div class="card" style="border-left: 4px solid var(--accent);">
-    <div class="card-title">
-      <span>🎙️ Live Voice Loop (Phase 4)</span>
-      <div style="display: flex; gap: 12px; align-items: center;">
-        <span id="voice-pill" class="voice-status-pill status-idle">
-          <span class="pulse-dot"></span>
-          <span id="voice-state-text">IDLE</span>
-        </span>
-      </div>
-    </div>
-
-    <div class="toolbar" style="align-items: center;">
-      <button id="ptt-btn" class="btn btn-green" onclick="triggerPTT()">🎤 Push-To-Talk</button>
-      <button id="mute-btn" class="btn btn-outline" onclick="toggleMute()">🎙️ Mute Mic</button>
-      <button class="btn btn-red" onclick="interruptVoice()">⏹ Interrupt</button>
-      <button class="btn btn-outline" onclick="testSpeaker()">🔊 Test Speaker</button>
-      <button class="btn btn-outline" onclick="testMic()">🎙️ Test Mic</button>
-
-      <div style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto;">
-        <label style="font-size: 0.8rem; color: var(--text-dim);">Input Device:</label>
-        <select id="audio-device-select" style="max-width: 250px;">
-          <option value="">Default Microphone</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="voice-console" id="voice-console">
-      <div style="color: var(--text-dim);">[Voice system initialized. Ready for speech interaction.]</div>
-    </div>
-
-    <div class="metrics-bar" id="metrics-bar">
-      <span>STT: <b id="m-stt">—</b></span>
-      <span>Memory: <b id="m-mem">—</b></span>
-      <span>LLM 1st Token: <b id="m-llm">—</b></span>
-      <span>TTS 1st Audio: <b id="m-tts">—</b></span>
-      <span>Total Turn: <b id="m-total">—</b></span>
-    </div>
+  <!-- Reconnection Alert Banner -->
+  <div id="reconnect-banner">
+    ⚠️ Connection to Nalla Sivam lost. Reconnecting...
   </div>
 
-  <!-- Performance Telemetry Card -->
-  <div class="card" style="border-left: 4px solid var(--amber);">
-    <div class="card-title">
-      <span>⚡ Performance Telemetry (all times in ms)</span>
-      <div style="display: flex; gap: 8px;">
-        <button class="btn btn-outline" onclick="loadPerfRecords()">↻ Refresh</button>
-        <button class="btn btn-red" onclick="clearPerfRecords()">🗑 Clear</button>
-      </div>
-    </div>
-    <div style="overflow-x: auto;">
-      <table id="perf-table" style="font-size: 0.8rem; min-width: 900px;">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Time</th>
-            <th>User utterance</th>
-            <th>FP?</th>
-            <th>STT</th>
-            <th>Memory</th>
-            <th>Prompt</th>
-            <th>LLM 1st</th>
-            <th>LLM tot</th>
-            <th>Tools</th>
-            <th>TTS 1st</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody id="perf-body">
-          <tr><td colspan="12" style="text-align:center;color:var(--text-dim);">No turns yet. Use voice or chat.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  <div id="app-layout">
+    <!-- ====================================================================
+         Left Icon Sidebar (10 Pages)
+         ==================================================================== -->
+    <aside id="sidebar">
+      <div class="sidebar-logo">NS</div>
+      <ul class="nav-list">
+        <li class="nav-item">
+          <button class="nav-btn active" data-page="home" data-tooltip="Home & Orb (1)">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="chat" data-tooltip="Chat & Tools (2)">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="voice" data-tooltip="Voice Studio (3)">
+            <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="personality" data-tooltip="Personality Studio (4)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="memory" data-tooltip="Memory Bank (5)">
+            <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="reminders" data-tooltip="Reminders & Tasks (6)">
+            <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="devices" data-tooltip="IoT Devices (7)">
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="performance" data-tooltip="Performance Waterfall (8)">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="activity" data-tooltip="Activity Log (9)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-btn" data-page="settings" data-tooltip="Settings & Danger Zone (0)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </li>
+      </ul>
+    </aside>
 
-  <!-- Personality & Persona Control Card -->
-  <div class="card" style="border-left: 4px solid var(--purple);">
-    <div class="card-title">
-      <span>🎭 Personality & Persona Controls</span>
-      <span id="active-mode-badge" class="badge badge-project">Friend Mode</span>
-    </div>
-
-    <!-- Mode preset buttons -->
-    <div style="margin-bottom: 16px;">
-      <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px;">PRESET MODES</div>
-      <div class="toolbar" style="margin-bottom: 0;">
-        <button type="button" class="btn btn-outline mode-btn active" id="btn-mode-Friend" onclick="selectPreset('Friend')">🤝 Friend</button>
-        <button type="button" class="btn btn-outline mode-btn" id="btn-mode-Jarvis" onclick="selectPreset('Jarvis')">🤖 Jarvis</button>
-        <button type="button" class="btn btn-outline mode-btn" id="btn-mode-Focus" onclick="selectPreset('Focus')">🎯 Focus</button>
-        <button type="button" class="btn btn-outline mode-btn" id="btn-mode-Engineer" onclick="selectPreset('Engineer')">⚡ Engineer</button>
-      </div>
-    </div>
-
-    <!-- Sliders Grid -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
-      <!-- Sarcasm -->
-      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <label style="font-size: 0.85rem; font-weight: 600;">Sarcasm</label>
-          <span id="val-sarcasm" style="font-size: 0.85rem; color: var(--accent);">7/10</span>
+    <!-- ====================================================================
+         Top HUD Header
+         ==================================================================== -->
+    <header id="top-header">
+      <div class="brand-section">
+        <div class="brand-title">NALLA <span>SIVAM</span></div>
+        <div class="brand-tag">HUD v2.0</div>
+        <div style="display:flex; align-items:center; gap:6px; margin-left:10px;">
+          <span id="conn-dot" style="width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green);"></span>
+          <span id="conn-text" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">ONLINE</span>
         </div>
-        <input type="range" id="slider-sarcasm" min="0" max="10" step="1" value="7" style="width: 100%; cursor: pointer;" oninput="onSliderChange()">
       </div>
 
-      <!-- Warmth -->
-      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <label style="font-size: 0.85rem; font-weight: 600;">Warmth</label>
-          <span id="val-warmth" style="font-size: 0.85rem; color: var(--green);">8/10</span>
+      <div class="header-actions">
+        <!-- Palette hint shortcut button -->
+        <button class="btn btn-sm btn-outline" onclick="window.NallaApp.switchPage('chat')" style="font-family:var(--font-mono); font-size:0.75rem;">
+          <kbd style="background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px;">Ctrl+K</kbd> Actions
+        </button>
+
+        <!-- Accent Colour Switcher -->
+        <div class="theme-picker">
+          <div class="theme-dot theme-cyan active" data-theme-choice="cyan" title="Cyan Theme"></div>
+          <div class="theme-dot theme-violet" data-theme-choice="violet" title="Violet Theme"></div>
+          <div class="theme-dot theme-amber" data-theme-choice="amber" title="Amber Theme"></div>
+          <div class="theme-dot theme-green" data-theme-choice="green" title="Green Theme"></div>
         </div>
-        <input type="range" id="slider-warmth" min="0" max="10" step="1" value="8" style="width: 100%; cursor: pointer;" oninput="onSliderChange()">
-      </div>
 
-      <!-- Tamil mix -->
-      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <label style="font-size: 0.85rem; font-weight: 600;">Tamil mix</label>
-          <span id="val-tamil" style="font-size: 0.85rem; color: #ffa657;">40%</span>
+        <div class="clock-display" id="header-clock">--:--:--</div>
+      </div>
+    </header>
+
+    <!-- ====================================================================
+         Main Stage (10 Page Views)
+         ==================================================================== -->
+    <main id="main-stage">
+      
+      <!-- PAGE 1: HOME & ORB CENTERPIECE -->
+      <section id="page-home" class="page-view active">
+        <div class="orb-stage-wrapper">
+          <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">
+            Live Voice Loop (Phase 4) Centerpiece
+          </div>
+          <canvas id="orb-canvas" width="320" height="320"></canvas>
+
+          <div class="orb-state-indicator">
+            <span class="orb-state-dot"></span>
+            <span id="orb-state-label">IDLE</span>
+          </div>
+
+          <!-- Orb Voice Control Bar -->
+          <div class="orb-controls">
+            <button class="btn btn-lg btn-primary" id="orb-ptt-btn">🎤 Push-To-Talk (Space)</button>
+            <button class="btn btn-outline" id="orb-mute-btn">🎙️ Mute</button>
+            <button class="btn btn-outline btn-red" id="orb-stop-btn">⏹ Stop</button>
+          </div>
+
+          <!-- Quick action chips -->
+          <div class="quick-chips">
+            <span class="chip" data-action="time">⏰ "What time is it?"</span>
+            <span class="chip" data-action="remember">🧠 "Remember this"</span>
+            <span class="chip" data-action="reminder">🔔 "Set reminder"</span>
+            <span class="chip" data-action="chat">💬 Open Chat</span>
+          </div>
+
+          <!-- Live transcript console -->
+          <div class="live-transcript-box" id="live-transcript-content">
+            <div style="color:var(--text-dim);">[Voice system initialized. Ready for speech interaction or push-to-talk.]</div>
+          </div>
         </div>
-        <input type="range" id="slider-tamil" min="0" max="100" step="5" value="40" style="width: 100%; cursor: pointer;" oninput="onSliderChange()">
-      </div>
 
-      <!-- Verbosity -->
-      <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <label style="font-size: 0.85rem; font-weight: 600;">Verbosity</label>
-          <span id="val-verbosity" style="font-size: 0.85rem; color: var(--purple);">very short</span>
+        <!-- Home Status Strip -->
+        <div class="status-strip">
+          <div class="status-item">
+            <span class="label">Gemini Provider</span>
+            <span class="value" id="strip-model-val">gemini-flash</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Microphone</span>
+            <span class="value" id="strip-mic-status" style="color:var(--green);">LIVE</span>
+          </div>
+          <div class="status-item">
+            <span class="label">MQTT Broker</span>
+            <span class="value" id="strip-mqtt-status" style="color:var(--text-bright);">127.0.0.1:1883</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Memories</span>
+            <span class="value" id="strip-mem-val">--</span>
+          </div>
+          <div class="status-item">
+            <span class="label">Turns Today</span>
+            <span class="value" id="strip-turns-val">--</span>
+          </div>
         </div>
-        <select id="select-verbosity" style="width: 100%;" onchange="onSliderChange()">
-          <option value="very short" selected>very short</option>
-          <option value="short">short</option>
-          <option value="balanced">balanced</option>
-          <option value="detailed">detailed</option>
-        </select>
+      </section>
+
+      <!-- PAGE 2: CHAT & TOOLS -->
+      <section id="page-chat" class="page-view">
+        <div class="hud-card hud-bracket chat-container">
+          <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px;">
+            <div class="card-title">
+              <span class="icon-accent">💬</span> Nalla Sivam Conversation
+            </div>
+            <button class="btn btn-sm btn-outline btn-red" id="chat-clear-btn">Clear Chat</button>
+          </div>
+
+          <div class="chat-messages" id="chat-messages-container">
+            <div style="text-align:center; color:var(--text-dim); margin-top:40px;">
+              Conversation initialized. Ask a question or give a command.
+            </div>
+          </div>
+
+          <div class="chat-input-bar">
+            <input type="text" id="chat-user-input" placeholder="Type a message or command (e.g. 'turn on relay 1', 'what time is it?')...">
+            <button class="btn btn-primary" id="chat-send-btn">Send</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 3: VOICE STUDIO -->
+      <section id="page-voice" class="page-view">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:20px;">
+          
+          <!-- Voice Picker & Preview -->
+          <div class="hud-card hud-bracket">
+            <div class="card-title"><span class="icon-accent">🎙️</span> Voice Synthesis Engine</div>
+            <div class="card-subtitle" style="margin-bottom:16px;">Configure neural EdgeTTS or offline Piper speech.</div>
+
+            <div style="margin-bottom:14px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">ACTIVE VOICE</label>
+              <select id="vs-voice-select" style="width:100%;">
+                <option value="en-IN-NeerjaNeural">en-IN-NeerjaNeural (English - Indian Warm)</option>
+                <option value="en-IN-PrabhatNeural">en-IN-PrabhatNeural (English - Indian Butler)</option>
+                <option value="ta-IN-PallaviNeural">ta-IN-PallaviNeural (Tamil - Pallavi)</option>
+                <option value="ta-IN-ValluvarNeural">ta-IN-ValluvarNeural (Tamil - Valluvar)</option>
+                <option value="piper-lessac">piper-lessac (Offline English)</option>
+              </select>
+            </div>
+
+            <!-- Profile presets -->
+            <div style="margin-bottom:16px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:6px;">VOICE PROFILES</label>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-sm btn-outline profile-btn" data-profile="warm">Warm Companion</button>
+                <button class="btn btn-sm btn-outline profile-btn" data-profile="butler">Robotic Butler</button>
+                <button class="btn btn-sm btn-outline profile-btn" data-profile="tamil">Tamil Native</button>
+                <button class="btn btn-sm btn-outline profile-btn" data-profile="piper">Offline Piper</button>
+              </div>
+            </div>
+
+            <!-- Rate, Pitch, Volume sliders -->
+            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+                  <span>Speaking Rate</span>
+                  <span id="vs-rate-val" style="color:var(--accent);">1.00x</span>
+                </div>
+                <input type="range" id="vs-rate-slider" min="0.5" max="1.5" step="0.05" value="1.0" style="width:100%;">
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+                  <span>Pitch Shift</span>
+                  <span id="vs-pitch-val" style="color:var(--green);">0 Hz</span>
+                </div>
+                <input type="range" id="vs-pitch-slider" min="-20" max="20" step="1" value="0" style="width:100%;">
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+                  <span>Playback Volume</span>
+                  <span id="vs-vol-val" style="color:var(--purple);">100%</span>
+                </div>
+                <input type="range" id="vs-vol-slider" min="0" max="100" step="5" value="100" style="width:100%;">
+              </div>
+            </div>
+
+            <button class="btn btn-primary" id="vs-test-speaker-btn" style="width:100%;">🔊 Test Speaker Audio</button>
+          </div>
+
+          <!-- STT & Microphone Tuning -->
+          <div class="hud-card hud-bracket">
+            <div class="card-title"><span class="icon-accent">⚡</span> Speech Recognition & Input</div>
+            <div class="card-subtitle" style="margin-bottom:16px;">Faster-Whisper on CPU with WebRTC VAD gating.</div>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">WHISPER MODEL</label>
+              <select id="vs-stt-select" style="width:100%;">
+                <option value="base">base (int8, ~140MB - Fast CPU)</option>
+                <option value="small">small (int8, ~460MB - Accurate Tanglish)</option>
+              </select>
+            </div>
+
+            <!-- Mic energy level meter -->
+            <div style="margin-bottom:20px;">
+              <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
+                <span>Microphone Energy Meter</span>
+                <span id="vs-mic-level-label" style="font-family:var(--font-mono); color:var(--accent);">Idle</span>
+              </div>
+              <div style="width:100%; height:12px; background:rgba(0,0,0,0.4); border-radius:6px; overflow:hidden; border:1px solid var(--border-subtle);">
+                <div id="vs-mic-meter-fill" style="width:0%; height:100%; background:var(--accent); transition:width 0.2s;"></div>
+              </div>
+            </div>
+
+            <button class="btn btn-outline" id="vs-test-mic-btn" style="width:100%;">🎙️ Run Mic Energy Test (1.5s)</button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- PAGE 4: PERSONALITY STUDIO -->
+      <section id="page-personality" class="page-view">
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">🎭</span> Persona & Dynamic Character Tuning</div>
+              <div class="card-subtitle">Tune sarcasm, warmth, and Tanglish frequency.</div>
+            </div>
+            <span class="badge badge-accent" id="ps-active-mode-badge">Friend Mode</span>
+          </div>
+
+          <!-- Presets -->
+          <div style="margin-bottom:16px;">
+            <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">PRESET COMBINATIONS</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="friend">🤝 Cool Friend</button>
+              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="jarvis">🤖 Pure Jarvis</button>
+              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="roast">🔥 Roast Mode</button>
+              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="calm">🌙 Calm Night</button>
+            </div>
+          </div>
+
+          <!-- Mode selectors -->
+          <div style="margin-bottom:16px;">
+            <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">MODE BASE</div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-outline mode-select-btn active" data-mode="Friend">Friend</button>
+              <button class="btn btn-sm btn-outline mode-select-btn" data-mode="Jarvis">Jarvis</button>
+              <button class="btn btn-sm btn-outline mode-select-btn" data-mode="Focus">Focus</button>
+              <button class="btn btn-sm btn-outline mode-select-btn" data-mode="Engineer">Engineer</button>
+            </div>
+          </div>
+
+          <!-- Sliders Grid -->
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:20px;">
+            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+                <span>Sarcasm</span>
+                <span id="ps-val-sarcasm" style="color:var(--accent);">7/10</span>
+              </div>
+              <input type="range" id="ps-slider-sarcasm" min="0" max="10" step="1" value="7" style="width:100%;">
+            </div>
+
+            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+                <span>Warmth</span>
+                <span id="ps-val-warmth" style="color:var(--green);">8/10</span>
+              </div>
+              <input type="range" id="ps-slider-warmth" min="0" max="10" step="1" value="8" style="width:100%;">
+            </div>
+
+            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
+                <span>Tamil Mix</span>
+                <span id="ps-val-tamil" style="color:var(--amber);">40%</span>
+              </div>
+              <input type="range" id="ps-slider-tamil" min="0" max="100" step="5" value="40" style="width:100%;">
+            </div>
+
+            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+              <div style="font-size:0.85rem; margin-bottom:6px;">Verbosity</div>
+              <select id="ps-select-verbosity" style="width:100%;">
+                <option value="very short" selected>very short</option>
+                <option value="short">short</option>
+                <option value="balanced">balanced</option>
+                <option value="detailed">detailed</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Injected line preview -->
+          <div style="background:#060a14; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle); margin-bottom:16px;">
+            <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase;">Injected System Prompt Line:</div>
+            <code id="ps-prompt-preview-box" style="color:var(--accent); font-size:0.9rem;">Sarcasm: 7/10. Warmth: 8/10. Tamil mix: 40%. Replies: very short.</code>
+          </div>
+
+          <div style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" id="ps-save-btn">💾 Save & Apply Personality</button>
+          </div>
+        </div>
+
+        <!-- Test Chat Box for Unsaved Tuning -->
+        <div class="hud-card hud-bracket">
+          <div class="card-title"><span class="icon-accent">🧪</span> Test Chat Box (Unsaved Slider Simulator)</div>
+          <div class="card-subtitle" style="margin-bottom:12px;">Send test prompts to audition Nalla's tone with current slider values before saving.</div>
+          
+          <div id="ps-test-output" style="background:#060a14; padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle); min-height:50px; margin-bottom:10px; font-size:0.9rem;">
+            <span style="color:var(--text-dim);">Type a test prompt below to audition Nalla's tone...</span>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="ps-test-input" placeholder="e.g. 'I skipped my workout today', 'Turn on relay', 'Should I start a new side project?'" style="flex:1;">
+            <button class="btn btn-outline" id="ps-test-send-btn">Test Reply</button>
+          </div>
+        </div>
+
+        <!-- Editable Persona Text -->
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">📝</span> Master Persona Markdown (persona/nalla_master.md)</div>
+              <div class="card-subtitle">Directly edit Nalla's core personality instructions on disk.</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-outline" id="ps-revert-persona-btn">Revert</button>
+              <button class="btn btn-sm btn-green" id="ps-save-persona-btn">Save to Disk</button>
+            </div>
+          </div>
+          <textarea id="ps-persona-editor" rows="12" style="width:100%; font-family:var(--font-mono); font-size:0.85rem; line-height:1.5;"></textarea>
+        </div>
+      </section>
+
+      <!-- PAGE 5: MEMORY BANK -->
+      <section id="page-memory" class="page-view">
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">🧠</span> Durable Memories Bank</div>
+              <div class="card-subtitle">Permanent facts, user preferences, and project context stored in SQLite.</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="badge badge-accent" id="mem-total-count">0 memories</span>
+              <a href="/api/memories/export" class="btn btn-sm btn-outline" download>⬇ Export JSON</a>
+            </div>
+          </div>
+
+          <!-- Search & Filter bar -->
+          <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+            <input type="text" id="mem-search-input" placeholder="Search memories with FTS5..." style="flex:1; min-width:240px;">
+            <select id="mem-filter-cat">
+              <option value="">All Categories</option>
+              <option value="preference">Preference</option>
+              <option value="fact">Fact</option>
+              <option value="project">Project</option>
+              <option value="person">Person</option>
+              <option value="task">Task</option>
+            </select>
+          </div>
+
+          <!-- Add Form -->
+          <form id="mem-add-form" style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:10px; margin-bottom:20px;">
+            <input type="text" id="mem-new-text" placeholder="e.g. Ugesh prefers dark mode in all UI apps" required>
+            <select id="mem-new-cat">
+              <option value="preference">Preference</option>
+              <option value="fact" selected>Fact</option>
+              <option value="project">Project</option>
+              <option value="person">Person</option>
+              <option value="task">Task</option>
+            </select>
+            <select id="mem-new-imp">
+              <option value="1">Imp: 1 (Low)</option>
+              <option value="2">Imp: 2</option>
+              <option value="3" selected>Imp: 3 (Normal)</option>
+              <option value="4">Imp: 4</option>
+              <option value="5">Imp: 5 (Critical)</option>
+            </select>
+            <button type="submit" class="btn btn-green">+ Save</button>
+          </form>
+
+          <!-- Memory Grid -->
+          <div id="mem-cards-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px;">
+            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading memories...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 6: REMINDERS & TASKS -->
+      <section id="page-reminders" class="page-view">
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">🔔</span> Scheduled Reminders & Tasks</div>
+              <div class="card-subtitle">Active notifications and task countdowns.</div>
+            </div>
+          </div>
+
+          <!-- Add reminder form -->
+          <form id="rem-add-form" style="display:grid; grid-template-columns:2fr 1fr auto; gap:10px; margin-bottom:20px;">
+            <input type="text" id="rem-text-input" placeholder="e.g. Water the plants, turn off the relay" required>
+            <input type="datetime-local" id="rem-due-input" required>
+            <button type="submit" class="btn btn-green">+ Set Reminder</button>
+          </form>
+
+          <!-- Reminders List -->
+          <div id="rem-list-container" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading reminders...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 7: DEVICES (PHASE 5 READY STUB) -->
+      <section id="page-devices" class="page-view">
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">🔌</span> ESP32 & ESP8266 Hardware Fleet</div>
+              <div class="card-subtitle">Live sensor readings, relay controls, and MQTT telemetry.</div>
+            </div>
+            <span class="badge badge-accent">Phase 5 Architecture</span>
+          </div>
+
+          <!-- Devices Grid -->
+          <div id="devices-cards-container" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;">
+            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading devices...</div>
+          </div>
+
+          <!-- Command History Table -->
+          <div class="card-title" style="margin-bottom:12px; font-size:0.95rem;">Command & Telemetry History</div>
+          <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-subtle); color:var(--text-dim); text-align:left;">
+                <th style="padding:8px;">Timestamp</th>
+                <th style="padding:8px;">Device</th>
+                <th style="padding:8px;">Command</th>
+                <th style="padding:8px;">Status</th>
+                <th style="padding:8px;">Latency</th>
+              </tr>
+            </thead>
+            <tbody id="devices-history-body">
+              <tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-dim);">No command history.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PAGE 8: PERFORMANCE WATERFALL -->
+      <section id="page-performance" class="page-view">
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">⚡</span> Latency Waterfall & Turn Telemetry</div>
+              <div class="card-subtitle">Per-turn timing spans across STT, Memory, LLM first token, and TTS.</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-outline" id="perf-refresh-btn">↻ Refresh</button>
+              <button class="btn btn-sm btn-red" id="perf-clear-btn">Clear</button>
+            </div>
+          </div>
+
+          <!-- Averages summary grid -->
+          <div id="perf-averages-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:20px;">
+          </div>
+
+          <!-- Telemetry Table -->
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border-subtle); color:var(--text-dim); text-align:left;">
+                  <th style="padding:8px;">#</th>
+                  <th style="padding:8px;">Time</th>
+                  <th style="padding:8px;">User Utterance</th>
+                  <th style="padding:8px;">Mode</th>
+                  <th style="padding:8px;">STT</th>
+                  <th style="padding:8px;">Memory</th>
+                  <th style="padding:8px;">LLM 1st</th>
+                  <th style="padding:8px;">TTS 1st</th>
+                  <th style="padding:8px;">Total</th>
+                </tr>
+              </thead>
+              <tbody id="perf-table-body">
+                <tr><td colspan="9" style="text-align:center; padding:24px; color:var(--text-dim);">Loading performance telemetry...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 9: ACTIVITY LOG -->
+      <section id="page-activity" class="page-view">
+        <div class="hud-card hud-bracket">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon-accent">📜</span> Unified Activity Event Log</div>
+              <div class="card-subtitle">Real-time chronicle of speech turns, tool executions, and state changes.</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-sm btn-outline activity-filter-btn active" data-filter="all">All</button>
+              <button class="btn btn-sm btn-outline activity-filter-btn" data-filter="voice">Voice</button>
+              <button class="btn btn-sm btn-outline activity-filter-btn" data-filter="tool">Tools</button>
+              <button class="btn btn-sm btn-outline activity-filter-btn" data-filter="memory">Memory</button>
+            </div>
+          </div>
+
+          <div id="activity-timeline-list" style="margin-top:16px;">
+            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading event history...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE 10: SETTINGS & DANGER ZONE -->
+      <section id="page-settings" class="page-view">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:20px;">
+          
+          <!-- General Settings -->
+          <div class="hud-card hud-bracket">
+            <div class="card-title"><span class="icon-accent">⚙️</span> Core System Preferences</div>
+            
+            <div style="margin-bottom:14px; margin-top:14px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">GEMINI API KEY (SAFE STORAGE)</label>
+              <div style="display:flex; gap:8px;">
+                <input type="password" id="set-api-key" value="AIzaSyDummyMaskedKey123456789" readonly style="flex:1;">
+                <button class="btn btn-outline" id="set-toggle-key-btn">Reveal</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">CHAT CONVERSATION MODEL</label>
+              <select id="set-chat-model" style="width:100%;">
+                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (Ultra Fast)</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced)</option>
+                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Default)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom:18px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">TOOL / COMMAND MODEL</label>
+              <select id="set-cmd-model" style="width:100%;">
+                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary" id="set-save-models-btn" style="width:100%;">Save Model Preferences</button>
+          </div>
+
+          <!-- Audio, Theme & Danger Zone -->
+          <div class="hud-card hud-bracket">
+            <div class="card-title"><span class="icon-accent">🎨</span> Audio & UI Controls</div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0;">
+              <div>
+                <div style="font-weight:600;">Audio Chimes & Sound Effects</div>
+                <div style="font-size:0.75rem; color:var(--text-dim);">Synthesized Web Audio sound for alerts & approvals.</div>
+              </div>
+              <input type="checkbox" id="set-sound-toggle" checked style="width:18px; height:18px; cursor:pointer;">
+            </div>
+
+            <div style="margin-bottom:20px;">
+              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">COLOR THEME PALETTE</div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="cyan">Cyan</button>
+                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="violet">Violet</button>
+                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="amber">Amber</button>
+                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="green">Green</button>
+              </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <div style="border-top:1px solid rgba(239, 68, 68, 0.3); padding-top:16px; margin-top:20px;">
+              <div style="color:var(--red); font-weight:700; margin-bottom:4px;">⚠️ DANGER ZONE</div>
+              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:12px;">Permanently wipe all durable SQLite memories. Cannot be undone.</div>
+              <button class="btn btn-red" id="set-clear-memory-btn">Wipe Memory Store</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ====================================================================
+       Global Command Palette Modal (Ctrl+K)
+       ==================================================================== -->
+  <div class="modal-overlay" id="command-palette-modal">
+    <div class="palette-box">
+      <div class="palette-input-wrap">
+        <svg viewBox="0 0 24 24" style="width:18px; height:18px; stroke:var(--accent); stroke-width:2; fill:none; margin-right:10px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="palette-search-input" placeholder="Type a command or jump to page (e.g. 'chat', 'mute', 'jarvis')...">
       </div>
-    </div>
-
-    <!-- Live Injected Line Preview -->
-    <div style="background: #13171f; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;">
-      <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px;">System Prompt Injected Line:</div>
-      <code id="prompt-line-preview" style="color: var(--accent); font-size: 0.9rem;">Sarcasm: 7/10. Warmth: 8/10. Tamil mix: 40%. Replies: very short.</code>
-    </div>
-
-    <div style="display: flex; justify-content: flex-end; gap: 10px;">
-      <button type="button" class="btn btn-purple" onclick="savePersonality()">💾 Apply & Save Personality</button>
+      <ul class="palette-list" id="palette-results-list"></ul>
     </div>
   </div>
 
-  <!-- Add Memory Form -->
-  <div class="card">
-    <div class="card-title">Add New Memory</div>
-    <form class="form-grid" onsubmit="event.preventDefault(); addMemory();">
-      <input type="text" id="mem-text" placeholder="e.g. Ugesh prefers concise answers without fluff" required>
-      <select id="mem-cat">
-        <option value="preference">Preference</option>
-        <option value="fact" selected>Fact</option>
-        <option value="project">Project</option>
-        <option value="person">Person</option>
-        <option value="task">Task</option>
-      </select>
-      <select id="mem-imp">
-        <option value="1">Importance 1 (Low)</option>
-        <option value="2">Importance 2</option>
-        <option value="3" selected>Importance 3 (Normal)</option>
-        <option value="4">Importance 4</option>
-        <option value="5">Importance 5 (Critical)</option>
-      </select>
-      <button type="submit" class="btn btn-green">+ Save Memory</button>
-    </form>
-  </div>
-
-  <!-- Memory Table -->
-  <div class="card">
-    <div class="card-title">
-      <span>Durable Memories (<span id="mem-count">0</span>)</span>
-      <div>
-        <a href="/api/memories/export" class="btn btn-outline" download>⬇ Export JSON</a>
+  <!-- ====================================================================
+       Approval Modal for AMBER / RED Tool Execution
+       ==================================================================== -->
+  <div class="modal-overlay" id="approval-modal">
+    <div class="approval-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div style="font-weight:700; font-size:1.05rem; color:var(--text-bright);">Action Confirmation Needed</div>
+        <span id="approval-risk-badge" class="badge badge-amber">AMBER RISK</span>
+      </div>
+      <div id="approval-desc" style="font-size:0.95rem; color:var(--text-main); margin-bottom:20px; line-height:1.5;">
+        Nalla wants to execute a tool action.
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn btn-outline" id="approval-deny-btn">Deny</button>
+        <button class="btn btn-primary" id="approval-confirm-btn">Approve & Execute</button>
       </div>
     </div>
-
-    <div class="toolbar">
-      <input type="text" id="search-input" placeholder="Search memories (FTS5)..." oninput="loadMemories()" style="min-width: 260px;">
-      <select id="filter-cat" onchange="loadMemories()">
-        <option value="">All Categories</option>
-        <option value="preference">Preference</option>
-        <option value="fact">Fact</option>
-        <option value="project">Project</option>
-        <option value="person">Person</option>
-        <option value="task">Task</option>
-      </select>
-      <button class="btn btn-outline" onclick="loadMemories()">↻ Refresh</button>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 50px;">ID</th>
-          <th style="width: 120px;">Category</th>
-          <th style="width: 60px;">Imp</th>
-          <th>Memory Text</th>
-          <th style="width: 160px;">Last Used</th>
-          <th style="width: 140px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="memories-body">
-        <tr><td colspan="6" style="text-align: center; color: var(--text-dim);">Loading memories...</td></tr>
-      </tbody>
-    </table>
   </div>
 
-  <!-- Reminders Section -->
-  <div class="card">
-    <div class="card-title">Scheduled Reminders</div>
+  <!-- Global Toasts -->
+  <div id="toast-container"></div>
 
-    <form class="reminder-grid" onsubmit="event.preventDefault(); addReminder();" style="margin-bottom: 16px;">
-      <input type="text" id="rem-text" placeholder="e.g. Turn off the water heater" required>
-      <input type="datetime-local" id="rem-due" required>
-      <button type="submit" class="btn btn-green">+ Set Reminder</button>
-    </form>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 50px;">ID</th>
-          <th>Reminder</th>
-          <th style="width: 200px;">Due At</th>
-          <th style="width: 100px;">Status</th>
-          <th style="width: 100px;">Action</th>
-        </tr>
-      </thead>
-      <tbody id="reminders-body">
-        <tr><td colspan="5" style="text-align: center; color: var(--text-dim);">Loading reminders...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div id="toast" class="toast"></div>
-
-  <script>
-    function showToast(msg) {
-      const t = document.getElementById("toast");
-      t.innerText = msg;
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 3000);
-    }
-
-    // ---------------------------------------------------------------
-    // WebSocket & Voice Pipeline
-    // ---------------------------------------------------------------
-    let isMuted = false;
-    let ws = null;
-
-    function initVoiceWebSocket() {
-      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${location.host}/ws/voice`;
-      ws = new WebSocket(wsUrl);
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleVoiceEvent(data);
-        } catch (e) {
-          console.error("Invalid WS message", e);
-        }
-      };
-
-      ws.onclose = () => {
-        setTimeout(initVoiceWebSocket, 2000);
-      };
-    }
-
-    function handleVoiceEvent(event) {
-      if (event.type === "state_change") {
-        updateVoicePill(event.state);
-        if (event.muted !== undefined) {
-          updateMuteButton(event.muted);
-        }
-      } else if (event.type === "transcript") {
-        const consoleEl = document.getElementById("voice-console");
-        const color = event.role === "user" ? "var(--accent)" : "var(--green)";
-        const label = event.role === "user" ? "You" : "Nalla";
-        const line = document.createElement("div");
-        line.innerHTML = `<span style="color:${color}; font-weight:bold;">${label}:</span> ${escapeHtml(event.text)}`;
-        consoleEl.appendChild(line);
-        consoleEl.scrollTop = consoleEl.scrollHeight;
-      } else if (event.type === "metrics") {
-        const m = event.metrics;
-        if (m.stt_ms !== undefined) document.getElementById("m-stt").innerText = `${m.stt_ms} ms`;
-        if (m.memory_search_ms !== undefined) document.getElementById("m-mem").innerText = `${m.memory_search_ms} ms`;
-        if (m.llm_first_token_ms !== undefined) document.getElementById("m-llm").innerText = `${m.llm_first_token_ms} ms`;
-        if (m.tts_first_audio_ms !== undefined) document.getElementById("m-tts").innerText = `${m.tts_first_audio_ms} ms`;
-        else if (m.tts_first_word_ms !== undefined) document.getElementById("m-tts").innerText = `${m.tts_first_word_ms} ms`;
-        if (m.total_turn_ms !== undefined) document.getElementById("m-total").innerText = `${m.total_turn_ms} ms`;
-      } else if (event.type === "mute_change") {
-        updateMuteButton(event.muted);
-      }
-    }
-
-    function updateVoicePill(state) {
-      const pill = document.getElementById("voice-pill");
-      const text = document.getElementById("voice-state-text");
-      text.innerText = state;
-      pill.className = "voice-status-pill";
-
-      if (state === "IDLE") pill.classList.add("status-idle");
-      else if (state === "LISTENING") pill.classList.add("status-listening");
-      else if (state === "TRANSCRIBING") pill.classList.add("status-transcribing");
-      else if (state === "THINKING") pill.classList.add("status-thinking");
-      else if (state === "SPEAKING") pill.classList.add("status-speaking");
-    }
-
-    function updateMuteButton(muted) {
-      isMuted = muted;
-      const btn = document.getElementById("mute-btn");
-      if (muted) {
-        btn.innerText = "🔇 Unmute Mic";
-        btn.classList.add("btn-red");
-        btn.classList.remove("btn-outline");
-      } else {
-        btn.innerText = "🎙️ Mute Mic";
-        btn.classList.remove("btn-red");
-        btn.classList.add("btn-outline");
-      }
-    }
-
-    async function triggerPTT() {
-      try {
-        await fetch("/api/voice/trigger", { method: "POST" });
-        showToast("Voice listening triggered.");
-      } catch (e) {
-        showToast("Error triggering voice.");
-      }
-    }
-
-    // Global Hotkey: Space or 'v' triggers Push-To-Talk when not editing inputs
-    document.addEventListener("keydown", (e) => {
-      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
-      if (activeTag === "input" || activeTag === "textarea" || activeTag === "select") {
-        return;
-      }
-      if (e.code === "Space" || e.key.toLowerCase() === "v") {
-        e.preventDefault();
-        triggerPTT();
-      }
-    });
-
-    async function toggleMute() {
-      try {
-        await fetch("/api/voice/mute", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ muted: !isMuted })
-        });
-      } catch (e) {
-        showToast("Error toggling mute.");
-      }
-    }
-
-    async function interruptVoice() {
-      try {
-        await fetch("/api/voice/interrupt", { method: "POST" });
-        showToast("Interrupted speech.");
-      } catch (e) {
-        showToast("Error interrupting.");
-      }
-    }
-
-    async function testSpeaker() {
-      try {
-        await fetch("/api/voice/test-speaker", { method: "POST" });
-        showToast("Playing speaker test...");
-      } catch (e) {
-        showToast("Error playing speaker test.");
-      }
-    }
-
-    async function testMic() {
-      showToast("Recording 1.5s for mic test...");
-      try {
-        const res = await fetch("/api/voice/test-mic", { method: "POST" });
-        const data = await res.json();
-        showToast(data.message);
-      } catch (e) {
-        showToast("Error testing microphone.");
-      }
-    }
-
-    async function loadAudioDevices() {
-      try {
-        const res = await fetch("/api/audio/devices");
-        const data = await res.json();
-        const sel = document.getElementById("audio-device-select");
-        sel.innerHTML = '<option value="">Default Microphone</option>';
-        data.input_devices.forEach(d => {
-          const opt = document.createElement("option");
-          opt.value = d.index;
-          opt.innerText = `${d.name} (${d.channels} ch)`;
-          sel.appendChild(opt);
-        });
-      } catch (e) {
-        console.error("Failed loading audio devices", e);
-      }
-    }
-
-    // ---------------------------------------------------------------
-    // Memory & Settings Functions
-    // ---------------------------------------------------------------
-    async function loadSettings() {
-      try {
-        const res = await fetch("/api/settings");
-        const data = await res.json();
-        const toggle = document.getElementById("memory-toggle");
-        const status = document.getElementById("memory-status");
-        toggle.checked = data.memory_enabled;
-        status.innerText = data.memory_enabled ? "ENABLED" : "OFF";
-        status.style.color = data.memory_enabled ? "var(--green)" : "var(--red)";
-      } catch (err) {
-        console.error("Failed to load settings", err);
-      }
-    }
-
-    async function toggleMemory(enabled) {
-      try {
-        await fetch("/api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ memory_enabled: enabled })
-        });
-        const status = document.getElementById("memory-status");
-        status.innerText = enabled ? "ENABLED" : "OFF";
-        status.style.color = enabled ? "var(--green)" : "var(--red)";
-        showToast(enabled ? "Memory enabled" : "Memory turned OFF");
-      } catch (err) {
-        showToast("Error updating settings");
-      }
-    }
-
-    // ---------------------------------------------------------------
-    // Personality Functions
-    // ---------------------------------------------------------------
-    let currentModes = {
-      "Friend": { sarcasm: 7, warmth: 8, tamil_mix: 40, verbosity: "very short" },
-      "Jarvis": { sarcasm: 3, warmth: 6, tamil_mix: 10, verbosity: "short" },
-      "Focus": { sarcasm: 1, warmth: 4, tamil_mix: 0, verbosity: "very short" },
-      "Engineer": { sarcasm: 5, warmth: 5, tamil_mix: 20, verbosity: "balanced" }
-    };
-    let activeMode = "Friend";
-
-    async function loadPersonality() {
-      try {
-        const res = await fetch("/api/personality");
-        const data = await res.json();
-        if (data.modes) currentModes = data.modes;
-        activeMode = data.mode || "Friend";
-
-        document.getElementById("slider-sarcasm").value = data.sarcasm;
-        document.getElementById("slider-warmth").value = data.warmth;
-        document.getElementById("slider-tamil").value = data.tamil_mix;
-        document.getElementById("select-verbosity").value = data.verbosity;
-
-        updatePersonalityUI(activeMode);
-      } catch (err) {
-        console.error("Failed to load personality settings", err);
-      }
-    }
-
-    function selectPreset(mode) {
-      activeMode = mode;
-      const preset = currentModes[mode];
-      if (preset) {
-        document.getElementById("slider-sarcasm").value = preset.sarcasm;
-        document.getElementById("slider-warmth").value = preset.warmth;
-        document.getElementById("slider-tamil").value = preset.tamil_mix;
-        document.getElementById("select-verbosity").value = preset.verbosity;
-      }
-      updatePersonalityUI(mode);
-    }
-
-    function onSliderChange() {
-      const s = parseInt(document.getElementById("slider-sarcasm").value, 10);
-      const w = parseInt(document.getElementById("slider-warmth").value, 10);
-      const t = parseInt(document.getElementById("slider-tamil").value, 10);
-      const v = document.getElementById("select-verbosity").value;
-
-      let matchedMode = "Custom";
-      for (const [mName, mConfig] of Object.entries(currentModes)) {
-        if (mConfig.sarcasm === s && mConfig.warmth === w && mConfig.tamil_mix === t && mConfig.verbosity === v) {
-          matchedMode = mName;
-          break;
-        }
-      }
-      activeMode = matchedMode;
-      updatePersonalityUI(matchedMode);
-    }
-
-    function updatePersonalityUI(mode) {
-      const s = document.getElementById("slider-sarcasm").value;
-      const w = document.getElementById("slider-warmth").value;
-      const t = document.getElementById("slider-tamil").value;
-      const v = document.getElementById("select-verbosity").value;
-
-      document.getElementById("val-sarcasm").innerText = `${s}/10`;
-      document.getElementById("val-warmth").innerText = `${w}/10`;
-      document.getElementById("val-tamil").innerText = `${t}%`;
-      document.getElementById("val-verbosity").innerText = v;
-
-      // Update active preset button highlight
-      document.querySelectorAll(".mode-btn").forEach(btn => btn.classList.remove("active"));
-      const activeBtn = document.getElementById(`btn-mode-${mode}`);
-      if (activeBtn) activeBtn.classList.add("active");
-
-      // Update badge
-      const badge = document.getElementById("active-mode-badge");
-      badge.innerText = `${mode} Mode`;
-
-      // Live injected preview
-      const preview = `Sarcasm: ${s}/10. Warmth: ${w}/10. Tamil mix: ${t}%. Replies: ${v}.`;
-      document.getElementById("prompt-line-preview").innerText = preview;
-    }
-
-    async function savePersonality() {
-      const s = parseInt(document.getElementById("slider-sarcasm").value, 10);
-      const w = parseInt(document.getElementById("slider-warmth").value, 10);
-      const t = parseInt(document.getElementById("slider-tamil").value, 10);
-      const v = document.getElementById("select-verbosity").value;
-
-      try {
-        const res = await fetch("/api/personality", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: activeMode,
-            sarcasm: s,
-            warmth: w,
-            tamil_mix: t,
-            verbosity: v
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          showToast(`Personality updated (${activeMode} mode)`);
-        } else {
-          showToast(data.detail || "Error saving personality");
-        }
-      } catch (err) {
-        showToast("Network error saving personality");
-      }
-    }
-
-    async function loadMemories() {
-      const q = document.getElementById("search-input").value;
-      const cat = document.getElementById("filter-cat").value;
-      const url = `/api/memories?q=${encodeURIComponent(q)}&category=${encodeURIComponent(cat)}`;
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-        const tbody = document.getElementById("memories-body");
-        document.getElementById("mem-count").innerText = data.length;
-
-        if (data.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim);">No memories found.</td></tr>`;
-          return;
-        }
-
-        tbody.innerHTML = data.map(m => `
-          <tr id="row-${m.id}">
-            <td>#${m.id}</td>
-            <td><span class="badge badge-${m.category}">${m.category}</span></td>
-            <td>${m.importance}/5</td>
-            <td id="text-${m.id}">${escapeHtml(m.text)}</td>
-            <td style="color: var(--text-dim); font-size: 0.8rem;">${m.last_used_at ? m.last_used_at.replace("T", " ").slice(0, 19) : "Never"}</td>
-            <td class="actions-cell">
-              <button class="btn btn-outline" style="padding: 4px 8px; font-size: 0.8rem;" onclick="startEdit(${m.id})">Edit</button>
-              <button class="btn btn-red" style="padding: 4px 8px; font-size: 0.8rem;" onclick="confirmDelete(${m.id})">Delete</button>
-            </td>
-          </tr>
-        `).join("");
-      } catch (err) {
-        console.error("Failed to load memories", err);
-      }
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement("div");
-      div.innerText = text;
-      return div.innerHTML;
-    }
-
-    async function addMemory() {
-      const text = document.getElementById("mem-text").value.trim();
-      const category = document.getElementById("mem-cat").value;
-      const importance = parseInt(document.getElementById("mem-imp").value, 10);
-      if (!text) return;
-
-      try {
-        const res = await fetch("/api/memories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, category, importance })
-        });
-        const result = await res.json();
-        if (res.ok) {
-          showToast("Memory saved!");
-          document.getElementById("mem-text").value = "";
-          loadMemories();
-        } else {
-          showToast(result.detail || "Error saving memory");
-        }
-      } catch (err) {
-        showToast("Network error saving memory");
-      }
-    }
-
-    function startEdit(id) {
-      const cell = document.getElementById(`text-${id}`);
-      const oldText = cell.innerText;
-      cell.innerHTML = `
-        <div style="display: flex; gap: 6px;">
-          <input type="text" class="inline-input" id="edit-input-${id}" value="${escapeHtml(oldText)}">
-          <button class="btn btn-green" style="padding: 2px 8px; font-size: 0.8rem;" onclick="saveEdit(${id})">Save</button>
-          <button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.8rem;" onclick="loadMemories()">Cancel</button>
-        </div>
-      `;
-      document.getElementById(`edit-input-${id}`).focus();
-    }
-
-    async function saveEdit(id) {
-      const input = document.getElementById(`edit-input-${id}`);
-      const newText = input.value.trim();
-      if (!newText) return;
-
-      try {
-        const res = await fetch(`/api/memories/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: newText })
-        });
-        if (res.ok) {
-          showToast(`Memory #${id} updated.`);
-          loadMemories();
-        } else {
-          const err = await res.json();
-          showToast(err.detail || "Update failed");
-        }
-      } catch (err) {
-        showToast("Error updating memory");
-      }
-    }
-
-    async function confirmDelete(id) {
-      if (!confirm(`Are you sure you want to permanently delete memory #${id}? This action cannot be undone.`)) {
-        return;
-      }
-      try {
-        const res = await fetch(`/api/memories/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          showToast(`Memory #${id} deleted.`);
-          loadMemories();
-        } else {
-          showToast("Failed to delete memory");
-        }
-      } catch (err) {
-        showToast("Error deleting memory");
-      }
-    }
-
-    async function loadReminders() {
-      try {
-        const res = await fetch("/api/reminders");
-        const data = await res.json();
-        const tbody = document.getElementById("reminders-body");
-        if (data.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">No reminders scheduled.</td></tr>`;
-          return;
-        }
-
-        tbody.innerHTML = data.map(r => `
-          <tr>
-            <td>#${r.id}</td>
-            <td style="${r.status === 'done' ? 'text-decoration: line-through; color: var(--text-dim);' : ''}">${escapeHtml(r.text)}</td>
-            <td>${r.due_at.replace("T", " ").slice(0, 19)}</td>
-            <td><span class="badge" style="background: ${r.status === 'done' ? '#2ea04333' : '#d2992233'}; color: ${r.status === 'done' ? '#3fb950' : '#e3b341'};">${r.status}</span></td>
-            <td>
-              ${r.status === 'pending' ? `<button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.8rem;" onclick="markDone(${r.id})">Mark Done</button>` : '—'}
-            </td>
-          </tr>
-        `).join("");
-      } catch (err) {
-        console.error("Failed to load reminders", err);
-      }
-    }
-
-    async function addReminder() {
-      const text = document.getElementById("rem-text").value.trim();
-      const due_at = document.getElementById("rem-due").value;
-      if (!text || !due_at) return;
-
-      try {
-        const res = await fetch("/api/reminders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, due_at })
-        });
-        if (res.ok) {
-          showToast("Reminder scheduled!");
-          document.getElementById("rem-text").value = "";
-          document.getElementById("rem-due").value = "";
-          loadReminders();
-        } else {
-          showToast("Failed to set reminder");
-        }
-      } catch (err) {
-        showToast("Error adding reminder");
-      }
-    }
-
-    async function markDone(id) {
-      try {
-        const res = await fetch(`/api/reminders/${id}/done`, { method: "PATCH" });
-        if (res.ok) {
-          showToast(`Reminder #${id} marked as done.`);
-          loadReminders();
-        }
-      } catch (err) {
-        showToast("Error marking reminder done");
-      }
-    }
-
-    // Default due time: 10 minutes from now
-    const now = new Date();
-    now.setMinutes(now.getMinutes() + 10);
-    const pad = n => String(n).padStart(2, '0');
-    const localIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    document.getElementById("rem-due").value = localIso;
-
-    // Initial load
-    initVoiceWebSocket();
-    loadAudioDevices();
-    loadSettings();
-    loadPersonality();
-    loadMemories();
-    loadReminders();
-    loadPerfRecords();
-
-    // Auto-refresh perf every 10s
-    setInterval(loadPerfRecords, 10000);
-
-    async function loadPerfRecords() {
-      try {
-        const res = await fetch("/api/perf");
-        const data = await res.json();
-        const tbody = document.getElementById("perf-body");
-        const recs = data.records;
-        if (!recs || recs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-dim);">No turns yet. Use voice or chat.</td></tr>';
-          return;
-        }
-        // Show newest first
-        const rows = [...recs].reverse().map(r => {
-          const fp = r.fast_path ? '<span style="color:var(--green);">✓</span>' : '—';
-          function ms(v) { return v > 0 ? `<b style="color:${v > 2000 ? 'var(--red)' : v > 800 ? 'var(--amber)' : 'var(--green)'}">${Math.round(v)}</b>` : '—'; }
-          return `<tr>
-            <td>#${r.turn_id}</td>
-            <td style="color:var(--text-dim);font-size:0.75rem;">${r.ts_human}</td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.user_text)}">${escapeHtml(r.user_text)}</td>
-            <td>${fp}</td>
-            <td>${ms(r.stt_ms)}</td>
-            <td>${ms(r.memory_ms)}</td>
-            <td>${ms(r.prompt_build_ms)}</td>
-            <td>${ms(r.llm_first_ms)}</td>
-            <td>${ms(r.llm_total_ms)}</td>
-            <td>${ms(r.tool_calls_ms)}</td>
-            <td>${ms(r.tts_first_ms)}</td>
-            <td>${ms(r.total_ms)}</td>
-          </tr>`;
-        });
-        tbody.innerHTML = rows.join("");
-      } catch (err) {
-        console.error("Failed to load perf records", err);
-      }
-    }
-
-    async function clearPerfRecords() {
-      try {
-        await fetch("/api/perf", { method: "DELETE" });
-        showToast("Performance records cleared.");
-        loadPerfRecords();
-      } catch (err) {
-        showToast("Error clearing perf records.");
-      }
-    }
-  </script>
+  <!-- ====================================================================
+       Script Imports (Vanilla JS Modular Architecture)
+       ==================================================================== -->
+  <script src="/static/js/orb.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/pages/home.js"></script>
+  <script src="/static/js/pages/chat.js"></script>
+  <script src="/static/js/pages/voice.js"></script>
+  <script src="/static/js/pages/personality.js"></script>
+  <script src="/static/js/pages/memory.js"></script>
+  <script src="/static/js/pages/reminders.js"></script>
+  <script src="/static/js/pages/devices.js"></script>
+  <script src="/static/js/pages/performance.js"></script>
+  <script src="/static/js/pages/activity.js"></script>
+  <script src="/static/js/pages/settings.js"></script>
 </body>
 </html>

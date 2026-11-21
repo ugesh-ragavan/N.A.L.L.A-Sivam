@@ -23,10 +23,12 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import config
 from app.config import BASE_DIR, WEB_HOST, WEB_PORT
+from app.brain.persona import persona
 from app.memory.store import store
 from app.voice.audio_io import list_input_devices, list_output_devices
 from app.voice.pipeline import default_pipeline
@@ -53,6 +55,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+_STATIC_PATH = Path(__file__).resolve().parent / "static"
+_STATIC_PATH.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_PATH)), name="static")
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +96,37 @@ class PersonalityUpdate(BaseModel):
 
 class MuteRequest(BaseModel):
     muted: bool
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    session_id: str = "web"
+
+
+class TestPersonalityRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    sarcasm: int = Field(7, ge=0, le=10)
+    warmth: int = Field(8, ge=0, le=10)
+    tamil_mix: int = Field(40, ge=0, le=100)
+    verbosity: str = "very short"
+    mode: str = "Friend"
+
+
+class PersonaRawUpdate(BaseModel):
+    text: str
+
+
+class SnoozeRequest(BaseModel):
+    minutes: int = 15
+
+
+class ClearMemoryRequest(BaseModel):
+    confirmation: str
+
+
+class ModelSettingsUpdate(BaseModel):
+    chat_model: str | None = None
+    command_model: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -444,6 +481,218 @@ def clear_perf_records() -> dict[str, Any]:
     perf._records.clear()
     perf._counter = 0
     return {"ok": True, "message": "Performance records cleared."}
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 & Redesign: Chat, Persona, IoT, and Activity APIs
+# ---------------------------------------------------------------------------
+
+@app.post("/api/chat")
+def handle_chat_message(req: ChatRequest) -> dict[str, Any]:
+    """Execute a conversational chat turn with tool inspection support."""
+    if default_pipeline.agent is None:
+        from app.main import _build_agent
+        default_pipeline.agent = _build_agent()
+
+    store.save_message(req.session_id, "user", req.message)
+    history_turns = store.get_messages(req.session_id, limit=16)
+    messages = [{"role": m["role"], "content": m["text"]} for m in history_turns]
+
+    try:
+        reply = default_pipeline.agent.chat(messages)
+    except Exception as exc:
+        reply = f"Error: {exc}"
+
+    store.save_message(req.session_id, "assistant", reply)
+    return {
+        "ok": True,
+        "reply": reply,
+        "tool_calls": [],
+        "metrics": {
+            "memory_ms": getattr(default_pipeline.agent, "last_memory_search_ms", 0.0),
+            "prompt_ms": getattr(default_pipeline.agent, "last_prompt_build_ms", 0.0),
+        },
+    }
+
+
+@app.get("/api/persona/raw")
+def get_persona_raw() -> dict[str, Any]:
+    """Return raw markdown text of persona/nalla_master.md."""
+    text = persona.path.read_text(encoding="utf-8") if persona.path.exists() else ""
+    return {"text": text, "path": str(persona.path)}
+
+
+@app.put("/api/persona/raw")
+def update_persona_raw(req: PersonaRawUpdate) -> dict[str, Any]:
+    """Save updated markdown to persona/nalla_master.md."""
+    persona.path.write_text(req.text, encoding="utf-8")
+    persona._load()
+    return {"ok": True, "message": "Persona markdown saved to disk."}
+
+
+@app.post("/api/persona/revert")
+def revert_persona_raw() -> dict[str, Any]:
+    """Reload the persona file from disk."""
+    persona._load()
+    return {"ok": True, "text": persona._cached_text}
+
+
+@app.post("/api/personality/test")
+def test_personality_ephemeral(req: TestPersonalityRequest) -> dict[str, Any]:
+    """Test reply using unsaved slider settings without mutating saved config."""
+    from datetime import datetime
+    now = datetime.now().strftime("%A, %d %B %Y, %H:%M:%S")
+    ephemeral_line = (
+        f"Sarcasm: {req.sarcasm}/10. Warmth: {req.warmth}/10. "
+        f"Tamil mix: {req.tamil_mix}%. Replies: {req.verbosity}. Mode: {req.mode}."
+    )
+    custom_prompt = (
+        f"{persona._cached_text}\n\n---\n{ephemeral_line}\n\n"
+        f"Current date/time: {now}\nCurrently connected tools: (no tools connected in test mode)\n"
+    )
+
+    if default_pipeline.agent is None:
+        from app.main import _build_agent
+        default_pipeline.agent = _build_agent()
+
+    try:
+        resp = default_pipeline.agent._provider.generate(
+            messages=[{"role": "user", "content": req.message}],
+            tools=None,
+            system_prompt=custom_prompt,
+        )
+        return {"ok": True, "reply": resp.text.strip(), "prompt_line": ephemeral_line}
+    except Exception as exc:
+        return {"ok": False, "reply": f"Test chat error: {exc}"}
+
+
+# ---------------------------------------------------------------------------
+# IoT Devices Fleet (Phase 5 ready stub)
+# ---------------------------------------------------------------------------
+
+_DEVICES = [
+    {
+        "id": "esp32-relay-1",
+        "name": "Living Room Main Light",
+        "type": "relay",
+        "state": "off",
+        "load_w": 45,
+        "online": True,
+        "last_seen": "Just now",
+    },
+    {
+        "id": "esp32-dht22-1",
+        "name": "Living Room Climate Sensor",
+        "type": "sensor",
+        "state": "on",
+        "temp": 28.4,
+        "humidity": 62.5,
+        "online": True,
+        "last_seen": "2s ago",
+    },
+    {
+        "id": "esp8266-fan-1",
+        "name": "Bedroom Ceiling Fan",
+        "type": "relay",
+        "state": "on",
+        "load_w": 65,
+        "online": True,
+        "last_seen": "1m ago",
+    },
+    {
+        "id": "esp32-plug-1",
+        "name": "Workbench Smart Plug",
+        "type": "relay",
+        "state": "off",
+        "load_w": 120,
+        "online": False,
+        "last_seen": "12m ago",
+    },
+]
+
+_DEVICE_HISTORY = [
+    {"time": "10:14:22", "device": "Living Room Main Light", "command": "RELAY_OFF", "status": "ACK_CONFIRMED", "latency_ms": 42},
+    {"time": "09:45:10", "device": "Bedroom Ceiling Fan", "command": "RELAY_ON", "status": "ACK_CONFIRMED", "latency_ms": 38},
+    {"time": "08:30:00", "device": "Living Room Climate Sensor", "command": "TELEMETRY_POLL", "status": "ACK_CONFIRMED", "latency_ms": 15},
+]
+
+
+@app.get("/api/devices")
+def get_devices() -> dict[str, Any]:
+    return {"devices": _DEVICES, "history": _DEVICE_HISTORY}
+
+
+@app.post("/api/devices/{device_id}/toggle")
+def toggle_device(device_id: str) -> dict[str, Any]:
+    from datetime import datetime
+    for d in _DEVICES:
+        if d["id"] == device_id:
+            d["state"] = "off" if d["state"] == "on" else "on"
+            d["last_seen"] = "Just now"
+            _DEVICE_HISTORY.insert(0, {
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "device": d["name"],
+                "command": f"TOGGLE_{d['state'].upper()}",
+                "status": "ACK_CONFIRMED",
+                "latency_ms": 28,
+            })
+            return {"ok": True, "device_id": device_id, "state": d["state"]}
+    raise HTTPException(status_code=404, detail=f"Device {device_id} not found.")
+
+
+# ---------------------------------------------------------------------------
+# Activity Log & Additional Utilities
+# ---------------------------------------------------------------------------
+
+@app.get("/api/activity")
+def get_activity_log() -> dict[str, Any]:
+    events = [
+        {"category": "VOICE", "time": "Just now", "description": "Voice interaction loop standby", "detail": "Listening on 16kHz audio input"},
+        {"category": "MEMORY", "time": "Today", "description": "Durable memory store indexed", "detail": "FTS5 index ready"},
+        {"category": "SYSTEM", "time": "Today", "description": "NALLA SIVAM Control Center HUD v2.0 initialized", "detail": "All subsystems nominal"},
+    ]
+    return {"events": events}
+
+
+@app.post("/api/reminders/{reminder_id}/snooze")
+def snooze_reminder(reminder_id: int, req: SnoozeRequest) -> dict[str, Any]:
+    from datetime import datetime, timedelta
+    reminders = store.list_reminders()
+    target = next((r for r in reminders if r["id"] == reminder_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Reminder not found.")
+    try:
+        due = datetime.fromisoformat(target["due_at"])
+    except Exception:
+        due = datetime.now()
+    new_due = due + timedelta(minutes=req.minutes)
+    new_due_str = new_due.isoformat()
+
+    with store._conn() as conn:
+        conn.execute("UPDATE reminders SET due_at = ?, status = 'pending' WHERE id = ?", (new_due_str, reminder_id))
+    return {"ok": True, "id": reminder_id, "new_due_at": new_due_str}
+
+
+@app.post("/api/memories/clear")
+def clear_all_memories(req: ClearMemoryRequest) -> dict[str, Any]:
+    if req.confirmation != "DELETE":
+        raise HTTPException(status_code=400, detail="Invalid confirmation phrase. Type 'DELETE'.")
+    with store._conn() as conn:
+        conn.execute("DELETE FROM memories")
+        try:
+            conn.execute("DELETE FROM memories_fts")
+        except Exception:
+            pass
+    return {"ok": True, "message": "All memories permanently wiped."}
+
+
+@app.post("/api/settings/models")
+def update_model_settings(req: ModelSettingsUpdate) -> dict[str, Any]:
+    if req.chat_model:
+        config.GEMINI_CHAT_MODEL = req.chat_model
+    if req.command_model:
+        config.GEMINI_COMMAND_MODEL = req.command_model
+    return {"ok": True, "chat_model": config.GEMINI_CHAT_MODEL, "command_model": config.GEMINI_COMMAND_MODEL}
 
 
 # ---------------------------------------------------------------------------

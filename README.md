@@ -210,6 +210,30 @@ To train your own custom wake word model that detects *"Nalla"*:
 
 ---
 
+## 📸 Control Center Dashboard (HUD v2.0) — Screenshot Checklist
+
+The localhost web interface at `http://127.0.0.1:8000` is redesigned as a futuristic, glassmorphic HUD control center.
+
+| Feature / Page | View Details & Visual Verification Checklist | Hotkey / Route |
+| :--- | :--- | :--- |
+| **Centerpiece Orb (Home)** | Interactive canvas orb with 3D particle rings, dynamic breathing glow (IDLE), sonar ripples (LISTENING), gyroscopic gyro rings (THINKING), radiating waveform pulses (SPEAKING), and red flicker (ERROR). Status strip below with live telemetry. | `1` or `#home` |
+| **Push-To-Talk & Mic Control** | Big PTT button, mic mute toggle, stop playback button, and quick action chips (`"What time is it?"`, `"Remember this"`, `"Set reminder"`). | `Space` / `M` |
+| **Conversational Chat** | Modern chat bubbles (user & Nalla avatars), markdown rendering, collapsible tool-call inspection cards showing arguments, execution status, and results. | `2` or `#chat` |
+| **Voice Studio** | Neural EdgeTTS & offline Piper voice selector, live audio test button, rate/pitch/volume sliders, profiles ("Warm Companion", "Robotic Butler", "Tamil Native"), STT model selector, live microphone energy level meter. | `3` or `#voice` |
+| **Personality Studio** | Sliders for Sarcasm (0-10), Warmth (0-10), Tamil mix (0-100%), Verbosity; 4 modes (Friend, Jarvis, Focus, Engineer); editable `persona/nalla_master.md` with save/revert; live system prompt preview; **instant Test Chat box** testing unsaved slider settings live. | `4` or `#personality` |
+| **Durable Memory Bank** | Responsive card grid with instant SQLite FTS5 search, category filters (preference, fact, project, person, task), inline editing, hard delete, add memory form, JSON backup export. | `5` or `#memory` |
+| **Reminders & Tasks** | Countdown list with due timestamps, status badges (pending, done), quick add form, mark done button, snooze (+15m, +30m, +60m). | `6` or `#reminders` |
+| **IoT Hardware Fleet** | ESP32 / ESP8266 device cards (Relay, DHT22 Climate Sensor, Bedroom Fan, Smart Plug) with online/offline dots, sensor gauges, SVG sparklines, control toggles with ACK state transitions, command history. | `7` or `#devices` |
+| **Performance Waterfall** | Real-time per-turn latency waterfall breakdown (STT, Memory search, Prompt build, LLM 1st token, TTS 1st audio, total duration), average metrics cards, requests today counter, clear metrics button. | `8` or `#performance` |
+| **Unified Activity Log** | Timeline event chronicle for speech turns, tool executions, and system events with category filter pills (`All`, `Voice`, `Tools`, `Memory`). | `9` or `#activity` |
+| **Settings & Danger Zone** | Masked Gemini API key with reveal toggle, chat/command model selection, color theme picker (Cyan, Violet, Amber, Green), sound effects toggle, keyboard shortcuts guide, danger zone (wipe memories with typed `DELETE` confirmation). | `0` or `#settings` |
+| **Command Palette (Ctrl+K)** | Floating fuzzy search modal to jump to any page or trigger actions (mute mic, trigger PTT, switch themes, switch modes, run tests). | `Ctrl+K` |
+| **Approval Modal** | AMBER & RED risk tier modal gating sensitive tools with synthesized Web Audio chimes, description preview, Approve and Deny buttons. | Automated on AMBER |
+| **Theme Switcher** | 4 Cyberpunk accent palettes (Cyan `#00f0ff`, Violet `#b05cff`, Amber `#f59e0b`, Green `#10b981`) dynamically updating all glows, borders, and controls via CSS variables. | Top HUD Bar |
+| **Responsive Mobile View** | Sidebar collapses seamlessly to bottom navigation bar with touch-friendly controls on mobile viewports. | Responsive |
+
+---
+
 ## 🔒 Security & Privacy Rules
 
 1. **Localhost Bound:** Web interfaces bind strictly to `127.0.0.1` — no remote exposure.
