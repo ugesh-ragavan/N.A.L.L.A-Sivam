@@ -372,6 +372,40 @@
     </div>
   </div>
 
+  <!-- Performance Telemetry Card -->
+  <div class="card" style="border-left: 4px solid var(--amber);">
+    <div class="card-title">
+      <span>⚡ Performance Telemetry (all times in ms)</span>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-outline" onclick="loadPerfRecords()">↻ Refresh</button>
+        <button class="btn btn-red" onclick="clearPerfRecords()">🗑 Clear</button>
+      </div>
+    </div>
+    <div style="overflow-x: auto;">
+      <table id="perf-table" style="font-size: 0.8rem; min-width: 900px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Time</th>
+            <th>User utterance</th>
+            <th>FP?</th>
+            <th>STT</th>
+            <th>Memory</th>
+            <th>Prompt</th>
+            <th>LLM 1st</th>
+            <th>LLM tot</th>
+            <th>Tools</th>
+            <th>TTS 1st</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="perf-body">
+          <tr><td colspan="12" style="text-align:center;color:var(--text-dim);">No turns yet. Use voice or chat.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Personality & Persona Control Card -->
   <div class="card" style="border-left: 4px solid var(--purple);">
     <div class="card-title">
@@ -1039,6 +1073,55 @@
     loadPersonality();
     loadMemories();
     loadReminders();
+    loadPerfRecords();
+
+    // Auto-refresh perf every 10s
+    setInterval(loadPerfRecords, 10000);
+
+    async function loadPerfRecords() {
+      try {
+        const res = await fetch("/api/perf");
+        const data = await res.json();
+        const tbody = document.getElementById("perf-body");
+        const recs = data.records;
+        if (!recs || recs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-dim);">No turns yet. Use voice or chat.</td></tr>';
+          return;
+        }
+        // Show newest first
+        const rows = [...recs].reverse().map(r => {
+          const fp = r.fast_path ? '<span style="color:var(--green);">✓</span>' : '—';
+          function ms(v) { return v > 0 ? `<b style="color:${v > 2000 ? 'var(--red)' : v > 800 ? 'var(--amber)' : 'var(--green)'}">${Math.round(v)}</b>` : '—'; }
+          return `<tr>
+            <td>#${r.turn_id}</td>
+            <td style="color:var(--text-dim);font-size:0.75rem;">${r.ts_human}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.user_text)}">${escapeHtml(r.user_text)}</td>
+            <td>${fp}</td>
+            <td>${ms(r.stt_ms)}</td>
+            <td>${ms(r.memory_ms)}</td>
+            <td>${ms(r.prompt_build_ms)}</td>
+            <td>${ms(r.llm_first_ms)}</td>
+            <td>${ms(r.llm_total_ms)}</td>
+            <td>${ms(r.tool_calls_ms)}</td>
+            <td>${ms(r.tts_first_ms)}</td>
+            <td>${ms(r.total_ms)}</td>
+          </tr>`;
+        });
+        tbody.innerHTML = rows.join("");
+      } catch (err) {
+        console.error("Failed to load perf records", err);
+      }
+    }
+
+    async function clearPerfRecords() {
+      try {
+        await fetch("/api/perf", { method: "DELETE" });
+        showToast("Performance records cleared.");
+        loadPerfRecords();
+      } catch (err) {
+        showToast("Error clearing perf records.");
+      }
+    }
   </script>
 </body>
 </html>

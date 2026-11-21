@@ -57,7 +57,11 @@ def _int_env(key: str, default: int) -> int:
 # Settings
 # ------------------------------------------------------------------
 GEMINI_API_KEY: str = _require("GEMINI_API_KEY", "")
-GEMINI_MODEL: str = _require("GEMINI_MODEL", "gemini-3.1-flash-lite")
+# Two model slots: chat (conversation) and command (tool calls).
+# Default both to flash-lite; set GEMINI_CHAT_MODEL / GEMINI_COMMAND_MODEL in .env to override.
+GEMINI_MODEL: str = _require("GEMINI_MODEL", "gemini-2.0-flash-lite")
+GEMINI_CHAT_MODEL: str = _require("GEMINI_CHAT_MODEL", "") or GEMINI_MODEL
+GEMINI_COMMAND_MODEL: str = _require("GEMINI_COMMAND_MODEL", "") or GEMINI_MODEL
 LOG_LEVEL: str = _require("LOG_LEVEL", "INFO").upper()
 WEB_PORT: int = _int_env("WEB_PORT", 8000)
 WEB_HOST: str = _require("WEB_HOST", "127.0.0.1")

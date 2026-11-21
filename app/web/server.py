@@ -357,6 +357,8 @@ def get_settings() -> dict[str, Any]:
     return {
         "memory_enabled": config.MEMORY_ENABLED,
         "model": config.GEMINI_MODEL,
+        "chat_model": config.GEMINI_CHAT_MODEL,
+        "command_model": config.GEMINI_COMMAND_MODEL,
         "host": config.WEB_HOST,
         "port": config.WEB_PORT,
         "whisper_model": config.WHISPER_MODEL,
@@ -419,6 +421,29 @@ def update_personality(item: PersonalityUpdate) -> dict[str, Any]:
         "verbosity": config.PERSONALITY_VERBOSITY,
         "prompt_line": prompt_line,
     }
+
+
+# ---------------------------------------------------------------------------
+# Performance Telemetry API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/perf")
+def get_perf_records() -> dict[str, Any]:
+    """Return per-turn timing records and an ASCII summary table."""
+    from app.perf import perf
+    return {
+        "records": perf.records(),
+        "summary": perf.summary_table(),
+    }
+
+
+@app.delete("/api/perf")
+def clear_perf_records() -> dict[str, Any]:
+    """Clear the performance ring-buffer (for before/after comparisons)."""
+    from app.perf import perf
+    perf._records.clear()
+    perf._counter = 0
+    return {"ok": True, "message": "Performance records cleared."}
 
 
 # ---------------------------------------------------------------------------

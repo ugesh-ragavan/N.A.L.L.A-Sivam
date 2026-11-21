@@ -29,7 +29,7 @@ BANNER = r"""
  >> Think smart. Speak naturally. Act responsibly. Stay curious. <<
 """
 
-MAX_HISTORY = 20   # maximum turns kept in memory per session
+MAX_HISTORY = 8   # maximum turns kept in memory per session (8 pairs = 16 messages)
 
 
 def _print_banner(logger: logging.Logger) -> None:
@@ -58,6 +58,13 @@ def _build_agent():
     )
     # Attach agent to voice pipeline
     default_pipeline.agent = agent
+
+    # Warm up Gemini client + Whisper in background threads
+    import threading
+    threading.Thread(target=provider.warmup, daemon=True, name="GeminiWarmup").start()
+    from app.voice.stt import stt_engine
+    threading.Thread(target=stt_engine.warmup, daemon=True, name="WhisperWarmup").start()
+
     return agent
 
 
