@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from app.config import BASE_DIR, WHISPER_LANGUAGE, WHISPER_MODEL
+from app.config import BASE_DIR, WHISPER_BEAM_SIZE, WHISPER_LANGUAGE, WHISPER_MODEL
 
 logger = logging.getLogger("nalla.voice.stt")
 
@@ -84,7 +84,12 @@ class FasterWhisperSTT(SpeechToTextProvider):
         self.model_size = model_size or WHISPER_MODEL
         self.language = language or WHISPER_LANGUAGE
         self.download_root = download_root or (BASE_DIR / "data" / "models" / "whisper")
+        self.beam_size = WHISPER_BEAM_SIZE
         self._model = None  # Lazy loaded
+
+    def warmup(self) -> None:
+        """Pre-load Whisper model into memory to eliminate first-turn latency."""
+        self._get_model()
 
     def _get_model(self):
         """Lazy loader for WhisperModel to prevent startup lag."""
@@ -126,8 +131,8 @@ class FasterWhisperSTT(SpeechToTextProvider):
             segments, info = model.transcribe(
                 audio_array,
                 language=lang_param,
-                beam_size=5,
-                vad_filter=True,
+                beam_size=self.beam_size,
+                vad_filter=False,
             )
 
             text_parts = []
@@ -144,7 +149,7 @@ class FasterWhisperSTT(SpeechToTextProvider):
             confidence = 0.85
             if logprobs:
                 avg_lp = sum(logprobs) / len(logprobs)
-                confidence = max(0.0, min(1.0, math.exp(avg_lp)))
+                confidence = max(0.0, min(1.0, 1.0 + (avg_lp / 2.5)))
 
             detected_lang = getattr(info, "language", lang_param or "en")
             duration = getattr(info, "duration", len(audio_bytes) / 32000.0)

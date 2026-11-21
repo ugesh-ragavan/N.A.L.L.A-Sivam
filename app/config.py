@@ -78,6 +78,7 @@ AUDIO_OUTPUT_DEVICE: int | None = int(_dev_out) if _dev_out.isdigit() else None
 
 WHISPER_MODEL: str = _require("WHISPER_MODEL", "base")
 WHISPER_LANGUAGE: str = _require("WHISPER_LANGUAGE", "auto")
+WHISPER_BEAM_SIZE: int = _int_env("WHISPER_BEAM_SIZE", 1)
 TTS_ENGINE: str = _require("TTS_ENGINE", "edge-tts")
 TTS_VOICE: str = _require("TTS_VOICE", "en-IN-NeerjaNeural")
 TTS_VOICE_TA: str = _require("TTS_VOICE_TA", "ta-IN-PallaviNeural")
@@ -85,3 +86,4 @@ WAKE_WORD_ENGINE: str = _require("WAKE_WORD_ENGINE", "pushtotalk")
 WAKE_WORD_KEYWORD: str = _require("WAKE_WORD_KEYWORD", "hey jarvis")
 WAKE_WORD_SENSITIVITY: float = float(os.getenv("WAKE_WORD_SENSITIVITY", "0.5"))
 VAD_AGGRESSIVENESS: int = _int_env("VAD_AGGRESSIVENESS", 2)
+VAD_ENERGY_THRESHOLD: float = float(os.getenv("VAD_ENERGY_THRESHOLD", "400.0"))

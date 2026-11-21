@@ -199,8 +199,8 @@ class VoicePipeline:
             })
 
             # Check for low confidence or empty speech
-            if not user_text or confidence < 0.25:
-                logger.info("Unrecognized speech (conf: %.2f) — fallback phrase.", confidence)
+            if not user_text or (confidence < 0.15 and len(user_text) < 4):
+                logger.info("Unrecognized speech (text='%s', conf: %.2f) — fallback phrase.", user_text, confidence)
                 self._speak_phrase("Sorry boss, didn't catch that.")
                 self.set_state(VoiceState.IDLE)
                 return "Sorry boss, didn't catch that."
@@ -212,6 +212,15 @@ class VoicePipeline:
             # 3. THINKING & 4. SPEAKING (Streaming sentences)
             self.set_state(VoiceState.THINKING)
             llm_start = time.perf_counter()
+
+            # Attempt lazy agent attachment if none set
+            if self.agent is None:
+                try:
+                    from app.main import _build_agent
+                    self.agent = _build_agent()
+                    logger.info("Voice pipeline lazily attached full Gemini agent.")
+                except Exception as exc:
+                    logger.debug("Could not attach agent automatically: %s", exc)
 
             if self.agent is None:
                 reply = f"Voice test mode received: {user_text}"
@@ -266,12 +275,24 @@ class VoicePipeline:
             self._speak_phrase(reply, metrics, speech_end_time)
             return reply
 
+        # Persist user speech in SQLite memory
+        try:
+            from app.memory.store import store
+            store.save_message("voice", "user", user_input)
+        except Exception as exc:
+            logger.debug("Could not persist voice user turn: %s", exc)
+
         try:
             # We call agent.chat() to handle tools & persona properly
-            # In Phase 4, agent.chat() returns the final text
-            # For lowest latency, we immediately speak sentence by sentence
             reply = self.agent.chat(messages)
             full_response = reply
+
+            # Persist assistant reply
+            try:
+                from app.memory.store import store
+                store.save_message("voice", "assistant", reply)
+            except Exception as exc:
+                logger.debug("Could not persist voice assistant turn: %s", exc)
 
             metrics["llm_total_ms"] = round((time.perf_counter() - llm_start_time) * 1000.0, 1)
 
@@ -292,6 +313,7 @@ class VoicePipeline:
                 if not clean_sentence:
                     continue
 
+                logger.info("Synthesizing sentence for speech: '%s'", clean_sentence)
                 audio_bytes = self.tts.synthesize(clean_sentence)
 
                 if not first_audio_played:
@@ -302,7 +324,9 @@ class VoicePipeline:
                     break
 
                 # Play audio (blocking this sentence until complete or interrupted)
+                logger.info("Playing audio (%d bytes)...", len(audio_bytes))
                 self.player.play_audio_bytes(audio_bytes, block=True)
+                logger.info("Sentence playback complete.")
 
         except Exception as exc:
             logger.error("Failed during streaming agent speech: %s", exc)
@@ -325,10 +349,13 @@ class VoicePipeline:
         self._broadcast({"type": "transcript", "role": "assistant", "text": phrase})
 
         try:
+            logger.info("Synthesizing phrase: '%s'", clean)
             audio_bytes = self.tts.synthesize(clean)
             if metrics is not None and speech_end_time is not None:
                 metrics["tts_first_word_ms"] = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+            logger.info("Playing phrase audio (%d bytes)...", len(audio_bytes))
             self.player.play_audio_bytes(audio_bytes, block=True)
+            logger.info("Phrase playback complete.")
         except Exception as exc:
             logger.error("Failed to speak phrase '%s': %s", clean, exc)
 

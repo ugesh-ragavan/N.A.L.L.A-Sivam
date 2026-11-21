@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -32,10 +33,25 @@ from app.voice.pipeline import default_pipeline
 
 logger = logging.getLogger("nalla.web")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler to initialize agent on startup."""
+    if default_pipeline.agent is None:
+        try:
+            from app.main import _build_agent
+            default_pipeline.agent = _build_agent()
+            logger.info("Attached Agent to VoicePipeline on startup.")
+        except Exception as exc:
+            logger.debug("Deferred agent attachment on startup: %s", exc)
+    yield
+
+
 app = FastAPI(
     title="NALLA SIVAM Dashboard",
     description="Localhost-only JARVIS control panel, memory management, and voice pipeline.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
