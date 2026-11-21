@@ -133,6 +133,133 @@ PERSONALITY_VERBOSITY: str = os.getenv("PERSONALITY_VERBOSITY", "very short")
 
 SETTINGS_FILE = BASE_DIR / "data" / "settings.json"
 
+# ------------------------------------------------------------------
+# Voice Studio Profiles & Defaults
+# ------------------------------------------------------------------
+DEFAULT_VOICE_PROFILES: dict[str, Any] = {
+    "active": "Nalla Default",
+    "profiles": {
+        "Nalla Default": {
+            "engine": "edge-tts",
+            "voice": "en-IN-NeerjaNeural",
+            "voice_ta": "ta-IN-PallaviNeural",
+            "rate": "+0%",
+            "pitch": "+0Hz",
+            "volume": "+0%",
+        },
+        "Calm Night": {
+            "engine": "edge-tts",
+            "voice": "en-IN-NeerjaNeural",
+            "voice_ta": "ta-IN-PallaviNeural",
+            "rate": "-10%",
+            "pitch": "-3Hz",
+            "volume": "-15%",
+        },
+        "Hype": {
+            "engine": "edge-tts",
+            "voice": "en-IN-PrabhatNeural",
+            "voice_ta": "ta-IN-ValluvarNeural",
+            "rate": "+15%",
+            "pitch": "+5Hz",
+            "volume": "+0%",
+        },
+        "Robotic Butler": {
+            "engine": "edge-tts",
+            "voice": "en-IN-PrabhatNeural",
+            "voice_ta": "ta-IN-ValluvarNeural",
+            "rate": "+5%",
+            "pitch": "-5Hz",
+            "volume": "+0%",
+        },
+        "Offline Piper": {
+            "engine": "piper",
+            "voice": "en_US-lessac-medium",
+            "voice_ta": "ta-IN-PallaviNeural",
+            "rate": "+0%",
+            "pitch": "+0Hz",
+            "volume": "+0%",
+        },
+    },
+}
+
+DEFAULT_AUDIO_FEEL: dict[str, Any] = {
+    "speed_preset": "Normal",
+    "listening_chime": True,
+    "done_chime": True,
+    "chime_volume": 80,
+}
+
+VOICE_PROFILES: dict[str, Any] = dict(DEFAULT_VOICE_PROFILES)
+AUDIO_FEEL: dict[str, Any] = dict(DEFAULT_AUDIO_FEEL)
+
+
+def get_voice_profiles() -> dict[str, Any]:
+    """Return current voice profiles configuration."""
+    return VOICE_PROFILES
+
+
+def get_active_voice_profile() -> dict[str, Any]:
+    """Return the currently active voice profile dict."""
+    active_name = VOICE_PROFILES.get("active", "Nalla Default")
+    profiles = VOICE_PROFILES.get("profiles", {})
+    if active_name in profiles:
+        return profiles[active_name]
+    if profiles:
+        return next(iter(profiles.values()))
+    return DEFAULT_VOICE_PROFILES["profiles"]["Nalla Default"]
+
+
+def save_voice_profiles(data: dict[str, Any]) -> None:
+    """Save updated voice profiles (limit to 5) and persist."""
+    global VOICE_PROFILES, TTS_VOICE, TTS_VOICE_TA, TTS_ENGINE
+    if "profiles" in data:
+        # Enforce max 5 profiles
+        items = list(data["profiles"].items())[:5]
+        data["profiles"] = dict(items)
+    VOICE_PROFILES = data
+    active_prof = get_active_voice_profile()
+    TTS_ENGINE = active_prof.get("engine", TTS_ENGINE)
+    TTS_VOICE = active_prof.get("voice", TTS_VOICE)
+    TTS_VOICE_TA = active_prof.get("voice_ta", TTS_VOICE_TA)
+    save_persisted_settings()
+
+
+def get_audio_feel() -> dict[str, Any]:
+    """Return audio feel settings (speed presets and chimes)."""
+    return AUDIO_FEEL
+
+
+def save_audio_feel(data: dict[str, Any]) -> None:
+    """Save audio feel settings and persist."""
+    global AUDIO_FEEL
+    AUDIO_FEEL.update(data)
+    save_persisted_settings()
+
+
+def get_stt_settings() -> dict[str, Any]:
+    """Return STT and microphone settings."""
+    return {
+        "whisper_model": WHISPER_MODEL,
+        "language": WHISPER_LANGUAGE,
+        "input_device": AUDIO_INPUT_DEVICE,
+        "sensitivity": VAD_ENERGY_THRESHOLD,
+    }
+
+
+def save_stt_settings(data: dict[str, Any]) -> None:
+    """Save STT settings and persist."""
+    global WHISPER_MODEL, WHISPER_LANGUAGE, AUDIO_INPUT_DEVICE, VAD_ENERGY_THRESHOLD
+    if "whisper_model" in data:
+        WHISPER_MODEL = str(data["whisper_model"])
+    if "language" in data:
+        WHISPER_LANGUAGE = str(data["language"])
+    if "input_device" in data:
+        val = data["input_device"]
+        AUDIO_INPUT_DEVICE = int(val) if val is not None and str(val).isdigit() else None
+    if "sensitivity" in data:
+        VAD_ENERGY_THRESHOLD = float(data["sensitivity"])
+    save_persisted_settings()
+
 
 def get_personality_prompt_line() -> str:
     """Format the personality line for injection into the system prompt."""
@@ -146,7 +273,11 @@ def get_personality_prompt_line() -> str:
 
 def load_persisted_settings() -> None:
     """Load settings from data/settings.json if it exists."""
-    global PERSONALITY_MODE, PERSONALITY_SARCASM, PERSONALITY_WARMTH, PERSONALITY_TAMIL_MIX, PERSONALITY_VERBOSITY, MEMORY_ENABLED
+    global PERSONALITY_MODE, PERSONALITY_SARCASM, PERSONALITY_WARMTH, PERSONALITY_TAMIL_MIX
+    global PERSONALITY_VERBOSITY, MEMORY_ENABLED, VOICE_PROFILES, AUDIO_FEEL
+    global WHISPER_MODEL, WHISPER_LANGUAGE, AUDIO_INPUT_DEVICE, VAD_ENERGY_THRESHOLD
+    global TTS_ENGINE, TTS_VOICE, TTS_VOICE_TA
+
     if not SETTINGS_FILE.exists():
         return
     try:
@@ -161,6 +292,20 @@ def load_persisted_settings() -> None:
             PERSONALITY_VERBOSITY = str(p.get("verbosity", PERSONALITY_VERBOSITY))
         if "memory_enabled" in data:
             MEMORY_ENABLED = bool(data["memory_enabled"])
+        if "voice_profiles" in data:
+            VOICE_PROFILES = data["voice_profiles"]
+            active_prof = get_active_voice_profile()
+            TTS_ENGINE = active_prof.get("engine", TTS_ENGINE)
+            TTS_VOICE = active_prof.get("voice", TTS_VOICE)
+            TTS_VOICE_TA = active_prof.get("voice_ta", TTS_VOICE_TA)
+        if "audio_feel" in data:
+            AUDIO_FEEL.update(data["audio_feel"])
+        if "stt" in data:
+            stt_data = data["stt"]
+            WHISPER_MODEL = stt_data.get("whisper_model", WHISPER_MODEL)
+            WHISPER_LANGUAGE = stt_data.get("language", WHISPER_LANGUAGE)
+            AUDIO_INPUT_DEVICE = stt_data.get("input_device", AUDIO_INPUT_DEVICE)
+            VAD_ENERGY_THRESHOLD = float(stt_data.get("sensitivity", VAD_ENERGY_THRESHOLD))
     except Exception:
         pass
 
@@ -177,6 +322,14 @@ def save_persisted_settings() -> None:
             "warmth": PERSONALITY_WARMTH,
             "tamil_mix": PERSONALITY_TAMIL_MIX,
             "verbosity": PERSONALITY_VERBOSITY,
+        },
+        "voice_profiles": VOICE_PROFILES,
+        "audio_feel": AUDIO_FEEL,
+        "stt": {
+            "whisper_model": WHISPER_MODEL,
+            "language": WHISPER_LANGUAGE,
+            "input_device": AUDIO_INPUT_DEVICE,
+            "sensitivity": VAD_ENERGY_THRESHOLD,
         },
     }
     SETTINGS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")

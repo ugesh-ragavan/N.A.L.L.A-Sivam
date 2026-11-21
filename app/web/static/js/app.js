@@ -178,6 +178,15 @@
       updateMuteUI(data.muted);
     } else if (data.type === "approval_request") {
       showApprovalModal(data);
+    } else if (data.type === "chime") {
+      if (window.NallaVoiceStudio && window.NallaVoiceStudio.playChime) {
+        window.NallaVoiceStudio.playChime(data.sound, data.volume || 80);
+      }
+    } else if (data.type === "notice") {
+      if (window.NallaVoiceStudio && window.NallaVoiceStudio.showNotice) {
+        window.NallaVoiceStudio.showNotice(data.message);
+      }
+      showToast(data.message, data.level === "warning" ? "alert" : "info");
     }
   }
 

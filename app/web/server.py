@@ -27,11 +27,22 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import config
-from app.config import BASE_DIR, WEB_HOST, WEB_PORT
+from app.config import (
+    BASE_DIR,
+    WEB_HOST,
+    WEB_PORT,
+    get_voice_profiles,
+    save_voice_profiles,
+    get_audio_feel,
+    save_audio_feel,
+    get_stt_settings,
+    save_stt_settings,
+)
 from app.brain.persona import persona
 from app.memory.store import store
 from app.voice.audio_io import list_input_devices, list_output_devices
 from app.voice.pipeline import default_pipeline
+from app.voice.tts import get_available_voices_sync
 
 logger = logging.getLogger("nalla.web")
 
@@ -127,6 +138,34 @@ class ClearMemoryRequest(BaseModel):
 class ModelSettingsUpdate(BaseModel):
     chat_model: str | None = None
     command_model: str | None = None
+
+
+class VoiceProfilesUpdate(BaseModel):
+    active: str = "Nalla Default"
+    profiles: dict[str, Any] = {}
+
+
+class AudioFeelUpdate(BaseModel):
+    speed_preset: str = "Normal"
+    listening_chime: bool = True
+    done_chime: bool = True
+    chime_volume: int = 80
+
+
+class STTSettingsUpdate(BaseModel):
+    whisper_model: str = "base"
+    language: str = "auto"
+    input_device: int | None = None
+    sensitivity: float = 400.0
+
+
+class VoicePreviewRequest(BaseModel):
+    text: str = "Yes boss, sollunga!"
+    engine: str | None = None
+    voice: str | None = None
+    rate: Any = None
+    pitch: Any = None
+    volume: Any = None
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +320,81 @@ def test_microphone() -> dict[str, Any]:
         "rms": round(rms, 2),
         "message": f"Microphone active (Peak: {peak}, RMS: {rms:.1f})",
     }
+
+
+# ---------------------------------------------------------------------------
+# Voice Studio Management Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/voice/voices")
+def get_voice_list() -> dict[str, Any]:
+    """Return dynamic voice list categorized by language and engine."""
+    return {"ok": True, "voices": get_available_voices_sync()}
+
+
+@app.get("/api/voice/profiles")
+def get_voice_profiles_endpoint() -> dict[str, Any]:
+    """Return current voice profiles, active profile, audio feel, and STT config."""
+    profiles_cfg = get_voice_profiles()
+    return {
+        "ok": True,
+        "active": profiles_cfg.get("active", "Nalla Default"),
+        "profiles": profiles_cfg.get("profiles", {}),
+        "audio_feel": get_audio_feel(),
+        "stt": get_stt_settings(),
+    }
+
+
+@app.post("/api/voice/profiles")
+def update_voice_profiles_endpoint(req: VoiceProfilesUpdate) -> dict[str, Any]:
+    """Update voice profiles (up to 5 named profiles) and set active profile."""
+    save_voice_profiles(req.dict())
+    active_prof = get_voice_profiles().get("active")
+    return {"ok": True, "active": active_prof, "profiles": get_voice_profiles().get("profiles", {})}
+
+
+@app.post("/api/voice/audio-feel")
+def update_audio_feel_endpoint(req: AudioFeelUpdate) -> dict[str, Any]:
+    """Update audio feel settings (speed preset and chimes)."""
+    save_audio_feel(req.dict())
+    return {"ok": True, "audio_feel": get_audio_feel()}
+
+
+@app.post("/api/voice/stt-settings")
+def update_stt_settings_endpoint(req: STTSettingsUpdate) -> dict[str, Any]:
+    """Update STT model, language, input device, and sensitivity live."""
+    save_stt_settings(req.dict())
+    if hasattr(default_pipeline.vad, "energy_threshold"):
+        default_pipeline.vad.energy_threshold = req.sensitivity
+    return {"ok": True, "stt": get_stt_settings()}
+
+
+@app.post("/api/voice/preview")
+def preview_voice_endpoint(req: VoicePreviewRequest):
+    """Generate an instant speech preview sample and return as playable audio bytes."""
+    phrase = req.text or "Yes boss, sollunga!"
+    try:
+        audio_bytes, mime_type = default_pipeline.tts.preview(
+            text=phrase,
+            engine=req.engine,
+            voice=req.voice,
+            rate=req.rate,
+            pitch=req.pitch,
+            volume=req.volume,
+        )
+        if not audio_bytes:
+            raise HTTPException(status_code=500, detail="Voice preview generation produced empty audio.")
+        return Response(
+            content=audio_bytes,
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": "inline; filename=preview.audio",
+                "Cache-Control": "no-cache",
+            },
+        )
+    except Exception as exc:
+        logger.error("Preview endpoint failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Voice preview failed: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

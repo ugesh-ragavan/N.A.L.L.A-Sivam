@@ -101,6 +101,14 @@ class VoicePipeline:
         # Connect wakeword callback
         self.wakeword.start(on_detected=self.trigger_wakeword)
 
+        # Connect TTS fallback notification listener
+        if hasattr(self.tts, "add_fallback_listener"):
+            self.tts.add_fallback_listener(self._handle_tts_fallback)
+
+    def _handle_tts_fallback(self, reason: str) -> None:
+        logger.warning("TTS fallback active: %s", reason)
+        self._broadcast({"type": "notice", "level": "warning", "message": reason})
+
     # ------------------------------------------------------------------
     # State & Event Broadcasting
     # ------------------------------------------------------------------
@@ -118,6 +126,17 @@ class VoicePipeline:
             if extra:
                 payload.update(extra)
             self._broadcast(payload)
+
+            # Trigger optional chimes
+            try:
+                from app.config import get_audio_feel
+                feel = get_audio_feel()
+                if new_state == VoiceState.LISTENING and feel.get("listening_chime"):
+                    self._broadcast({"type": "chime", "sound": "listening", "volume": feel.get("chime_volume", 80)})
+                elif new_state == VoiceState.IDLE and old_state == VoiceState.SPEAKING and feel.get("done_chime"):
+                    self._broadcast({"type": "chime", "sound": "done", "volume": feel.get("chime_volume", 80)})
+            except Exception:
+                pass
 
     def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
         if callback not in self._state_subscribers:
@@ -395,7 +414,8 @@ class VoicePipeline:
 
                     self.set_state(VoiceState.SPEAKING)
                     logger.debug("TTS sentence: '%s'", clean)
-                    audio = self.tts.synthesize(clean, language=detected_lang)
+                    # Sentence-by-sentence language switching (auto-detects Tamil characters per sentence)
+                    audio = self.tts.synthesize(clean)
 
                     if not first_audio_played:
                         first_audio_played = True
@@ -413,7 +433,7 @@ class VoicePipeline:
                 clean = sanitize_text_for_speech(remaining)
                 if clean:
                     self.set_state(VoiceState.SPEAKING)
-                    audio = self.tts.synthesize(clean, language=detected_lang)
+                    audio = self.tts.synthesize(clean)
                     if not first_audio_played:
                         first_audio_played = True
                         rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)

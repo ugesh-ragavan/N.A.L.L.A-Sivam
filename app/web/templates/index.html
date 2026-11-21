@@ -196,48 +196,96 @@
 
       <!-- PAGE 3: VOICE STUDIO -->
       <section id="page-voice" class="page-view">
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:20px;">
-          
-          <!-- Voice Picker & Preview -->
-          <div class="hud-card hud-bracket">
-            <div class="card-title"><span class="icon-accent">🎙️</span> Voice Synthesis Engine</div>
-            <div class="card-subtitle" style="margin-bottom:16px;">Configure neural EdgeTTS or offline Piper speech.</div>
+        <!-- Fallback / Status Notice Banner -->
+        <div id="vs-notice-banner" style="display:none; background:rgba(255, 180, 0, 0.15); border:1px solid #ffb400; color:#ffb400; padding:10px 16px; border-radius:6px; margin-bottom:16px; font-size:0.85rem; align-items:center; justify-content:space-between;">
+          <span id="vs-notice-text">Notice</span>
+          <button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:0.75rem;" onclick="document.getElementById('vs-notice-banner').style.display='none'">Dismiss</button>
+        </div>
 
-            <div style="margin-bottom:14px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">ACTIVE VOICE</label>
-              <select id="vs-voice-select" style="width:100%;">
-                <option value="en-IN-NeerjaNeural">en-IN-NeerjaNeural (English - Indian Warm)</option>
-                <option value="en-IN-PrabhatNeural">en-IN-PrabhatNeural (English - Indian Butler)</option>
-                <option value="ta-IN-PallaviNeural">ta-IN-PallaviNeural (Tamil - Pallavi)</option>
-                <option value="ta-IN-ValluvarNeural">ta-IN-ValluvarNeural (Tamil - Valluvar)</option>
-                <option value="piper-lessac">piper-lessac (Offline English)</option>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:20px;">
+          
+          <!-- Voice Picker, Profiles & Preview -->
+          <div class="hud-card hud-bracket">
+            <div class="card-header" style="margin-bottom:12px;">
+              <div>
+                <div class="card-title"><span class="icon-accent">🎙️</span> Voice Synthesis & Profiles</div>
+                <div class="card-subtitle">Neural EdgeTTS & Piper with bilingual Tanglish auto-switching.</div>
+              </div>
+              <span class="badge badge-accent" id="vs-active-profile-badge">Nalla Default</span>
+            </div>
+
+            <!-- Profile selector & manager -->
+            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); padding:12px; border-radius:6px; margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <label style="font-size:0.8rem; color:var(--text-dim);">SAVED VOICE PROFILE (MAX 5)</label>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn btn-sm btn-outline" id="vs-save-profile-btn" title="Save current settings as a named profile">💾 Save</button>
+                  <button class="btn btn-sm btn-outline btn-red" id="vs-delete-profile-btn" title="Delete selected profile">🗑️</button>
+                </div>
+              </div>
+              <select id="vs-profile-select" style="width:100%;">
+                <option value="Nalla Default">Nalla Default</option>
+                <option value="Calm Night">Calm Night</option>
+                <option value="Hype">Hype</option>
+                <option value="Robotic Butler">Robotic Butler</option>
+                <option value="Offline Piper">Offline Piper</option>
               </select>
             </div>
 
-            <!-- Profile presets -->
+            <!-- Dynamic Voice selection -->
+            <div style="margin-bottom:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <label style="font-size:0.8rem; color:var(--text-dim);">PRIMARY VOICE (ENGLISH / DEFAULT)</label>
+                <span id="vs-voice-engine-badge" style="font-size:0.75rem; color:var(--accent);">edge-tts</span>
+              </div>
+              <select id="vs-voice-select" style="width:100%;">
+                <!-- Dynamically populated from /api/voice/voices -->
+                <option value="en-IN-NeerjaNeural">en-IN-NeerjaNeural (Female, India)</option>
+                <option value="en-IN-PrabhatNeural">en-IN-PrabhatNeural (Male, India)</option>
+                <option value="en_US-lessac-medium">en_US-lessac-medium (Piper Offline)</option>
+              </select>
+            </div>
+
+            <!-- Tamil Voice for Auto Switching -->
             <div style="margin-bottom:16px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:6px;">VOICE PROFILES</label>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn btn-sm btn-outline profile-btn" data-profile="warm">Warm Companion</button>
-                <button class="btn btn-sm btn-outline profile-btn" data-profile="butler">Robotic Butler</button>
-                <button class="btn btn-sm btn-outline profile-btn" data-profile="tamil">Tamil Native</button>
-                <button class="btn btn-sm btn-outline profile-btn" data-profile="piper">Offline Piper</button>
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">TAMIL VOICE (AUTO SENTENCE SWITCHING)</label>
+              <select id="vs-voice-ta-select" style="width:100%;">
+                <!-- Dynamically populated from /api/voice/voices -->
+                <option value="ta-IN-PallaviNeural">ta-IN-PallaviNeural (Female, India)</option>
+                <option value="ta-IN-ValluvarNeural">ta-IN-ValluvarNeural (Male, India)</option>
+              </select>
+            </div>
+
+            <!-- Preview Button -->
+            <div style="margin-bottom:18px;">
+              <button class="btn btn-outline" id="vs-preview-btn" style="width:100%; display:flex; justify-content:center; align-items:center; gap:8px;">
+                <span>▶️</span> Preview Voice ("Yes boss, sollunga!")
+              </button>
+            </div>
+
+            <!-- Speed Presets -->
+            <div style="margin-bottom:14px;">
+              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">SPEAKING SPEED PRESETS</div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-sm btn-outline speed-preset-btn" data-preset="Relaxed" style="flex:1;">Relaxed (0.85x)</button>
+                <button class="btn btn-sm btn-outline speed-preset-btn active" data-preset="Normal" style="flex:1;">Normal (1.0x)</button>
+                <button class="btn btn-sm btn-outline speed-preset-btn" data-preset="Quick" style="flex:1;">Quick (1.15x)</button>
               </div>
             </div>
 
             <!-- Rate, Pitch, Volume sliders -->
-            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
               <div>
                 <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
                   <span>Speaking Rate</span>
-                  <span id="vs-rate-val" style="color:var(--accent);">1.00x</span>
+                  <span id="vs-rate-val" style="color:var(--accent);">+0% (1.00x)</span>
                 </div>
                 <input type="range" id="vs-rate-slider" min="0.5" max="1.5" step="0.05" value="1.0" style="width:100%;">
               </div>
               <div>
                 <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
                   <span>Pitch Shift</span>
-                  <span id="vs-pitch-val" style="color:var(--green);">0 Hz</span>
+                  <span id="vs-pitch-val" style="color:var(--green);">+0 Hz</span>
                 </div>
                 <input type="range" id="vs-pitch-slider" min="-20" max="20" step="1" value="0" style="width:100%;">
               </div>
@@ -253,23 +301,73 @@
             <button class="btn btn-primary" id="vs-test-speaker-btn" style="width:100%;">🔊 Test Speaker Audio</button>
           </div>
 
-          <!-- STT & Microphone Tuning -->
+          <!-- STT, Microphone & Audio Feel Tuning -->
           <div class="hud-card hud-bracket">
-            <div class="card-title"><span class="icon-accent">⚡</span> Speech Recognition & Input</div>
-            <div class="card-subtitle" style="margin-bottom:16px;">Faster-Whisper on CPU with WebRTC VAD gating.</div>
+            <div class="card-title"><span class="icon-accent">⚡</span> Speech Input & Audio Feel</div>
+            <div class="card-subtitle" style="margin-bottom:16px;">Microphone VAD, Whisper CPU, and audio cue chimes.</div>
 
-            <div style="margin-bottom:16px;">
+            <!-- Audio Feel: Chimes -->
+            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); padding:12px; border-radius:6px; margin-bottom:18px;">
+              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:10px;">AUDIO FEEL (CHIMES)</div>
+              <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                  <input type="checkbox" id="vs-chime-listen" checked>
+                  <span>Soft "Listening" chime on wake / PTT</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                  <input type="checkbox" id="vs-chime-done" checked>
+                  <span>Soft "Done" chime when reply finishes</span>
+                </label>
+              </div>
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                  <span>Chime Volume</span>
+                  <span id="vs-chime-vol-val" style="color:var(--accent);">80%</span>
+                </div>
+                <input type="range" id="vs-chime-vol" min="0" max="100" step="5" value="80" style="width:100%;">
+              </div>
+            </div>
+
+            <!-- Whisper Model -->
+            <div style="margin-bottom:14px;">
               <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">WHISPER MODEL</label>
               <select id="vs-stt-select" style="width:100%;">
-                <option value="base">base (int8, ~140MB - Fast CPU)</option>
-                <option value="small">small (int8, ~460MB - Accurate Tanglish)</option>
+                <option value="base">base (int8, ~140MB - Fast CPU, low latency)</option>
+                <option value="small">small (int8, ~460MB - Accurate Tanglish & Tamil)</option>
               </select>
+            </div>
+
+            <!-- STT Language -->
+            <div style="margin-bottom:14px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">SPEECH LANGUAGE DETECTION</label>
+              <select id="vs-stt-lang-select" style="width:100%;">
+                <option value="auto">auto (Detect English or Tamil automatically)</option>
+                <option value="en">English (Force en)</option>
+                <option value="ta">Tamil (Force ta)</option>
+              </select>
+            </div>
+
+            <!-- Microphone Device Selection -->
+            <div style="margin-bottom:14px;">
+              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">MICROPHONE HARDWARE</label>
+              <select id="vs-mic-device-select" style="width:100%;">
+                <option value="">Default System Microphone</option>
+              </select>
+            </div>
+
+            <!-- Mic Sensitivity / Energy Threshold -->
+            <div style="margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                <span>VAD Sensitivity / Energy Threshold</span>
+                <span id="vs-mic-sens-val" style="color:var(--accent);">400</span>
+              </div>
+              <input type="range" id="vs-mic-sensitivity-slider" min="100" max="1500" step="25" value="400" style="width:100%;">
             </div>
 
             <!-- Mic energy level meter -->
             <div style="margin-bottom:20px;">
               <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
-                <span>Microphone Energy Meter</span>
+                <span>Live Microphone Energy Meter</span>
                 <span id="vs-mic-level-label" style="font-family:var(--font-mono); color:var(--accent);">Idle</span>
               </div>
               <div style="width:100%; height:12px; background:rgba(0,0,0,0.4); border-radius:6px; overflow:hidden; border:1px solid var(--border-subtle);">
@@ -277,7 +375,10 @@
               </div>
             </div>
 
-            <button class="btn btn-outline" id="vs-test-mic-btn" style="width:100%;">🎙️ Run Mic Energy Test (1.5s)</button>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-outline" id="vs-test-mic-btn" style="flex:1;">🎙️ Test Mic (1.5s)</button>
+              <button class="btn btn-primary" id="vs-save-all-btn" style="flex:1;">💾 Save All Live</button>
+            </div>
           </div>
 
         </div>
