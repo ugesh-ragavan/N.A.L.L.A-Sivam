@@ -127,14 +127,15 @@ class EdgeTTS(TextToSpeechProvider):
         try:
             # Run in new or current asyncio loop
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        return pool.submit(asyncio.run, self._synthesize_async(text, selected_voice)).result(timeout=15.0)
-                return loop.run_until_complete(self._synthesize_async(text, selected_voice))
+                loop = asyncio.get_running_loop()
             except RuntimeError:
-                return asyncio.run(self._synthesize_async(text, selected_voice))
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    return pool.submit(asyncio.run, self._synthesize_async(text, selected_voice)).result(timeout=15.0)
+            return asyncio.run(self._synthesize_async(text, selected_voice))
         except Exception as exc:
             logger.warning("EdgeTTS synthesis failed: %s", exc)
             raise RuntimeError(f"EdgeTTS network error: {exc}") from exc

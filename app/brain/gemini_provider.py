@@ -61,11 +61,17 @@ class GeminiProvider(LLMProvider):
         client = self._get_client()
         gemini_contents = _messages_to_gemini(messages)
         gemini_tools    = _tools_to_gemini(tools) if tools else None
-        config          = {}
+        config: dict[str, Any] = {}
         if system_prompt:
             config["system_instruction"] = system_prompt
+        # Gemini 3 / 2.5: use thinking_level, never thinking_budget
+        if "gemini-2.5" in self._model.lower() or "gemini-3" in self._model.lower():
+            config["thinking_config"] = {"thinking_level": "low"}
         if gemini_tools:
             config["tools"] = gemini_tools
+        # Gemini 3 / 2.5: use thinking_level, never thinking_budget
+        if "gemini-2.5" in self._model.lower() or "gemini-3" in self._model.lower():
+            config["thinking_config"] = {"thinking_level": "low"}
 
         last_exc: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
@@ -115,6 +121,9 @@ class GeminiProvider(LLMProvider):
         config: dict[str, Any] = {}
         if system_prompt:
             config["system_instruction"] = system_prompt
+        # Gemini 3 / 2.5: use thinking_level, never thinking_budget
+        if "gemini-2.5" in self._model.lower() or "gemini-3" in self._model.lower():
+            config["thinking_config"] = {"thinking_level": "low"}
 
         try:
             kwargs: dict[str, Any] = {

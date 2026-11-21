@@ -16,7 +16,8 @@ Honesty rules (enforced in code, not just in the persona):
 from __future__ import annotations
 
 import logging
-from typing import Any
+import time
+from typing import Any, Generator
 
 from app.brain.llm_provider import LLMProvider, LLMResponse, Message, ToolCall
 from app.brain.tools import ToolRegistry, ToolResult
@@ -57,25 +58,15 @@ class Agent:
         self._approvals      = approvals
         self._store          = store
         self._memory_enabled = memory_enabled
+        self.last_memory_search_ms: float = 0.0
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def chat(self, messages: list[Message]) -> str:
-        """Run one user turn through the full agent loop.
-
-        Parameters
-        ----------
-        messages: Conversation history (the caller manages the list).
-                  The last entry must be the current user message.
-
-        Returns
-        -------
-        The agent's final text reply (never empty — an error message
-        is returned instead of raising an exception to the UI).
-        """
-        # Memory injection: search relevant memories for the latest user message
+        """Run one user turn through the full agent loop."""
+        t_mem0 = time.perf_counter()
         memory_context = ""
         if self._memory_enabled and self._store and messages:
             user_text = ""
@@ -95,6 +86,8 @@ class Agent:
                         memory_context = "\n".join(lines)
                 except Exception as exc:
                     logger.warning("Failed to recall memories for query: %s", exc)
+
+        self.last_memory_search_ms = round((time.perf_counter() - t_mem0) * 1000.0, 1)
 
         system_prompt = self._persona.build_system_prompt(
             tool_summary=self._registry.summary(),
@@ -159,6 +152,93 @@ class Agent:
             return final.text.strip() or "(Step limit reached — no final summary.)"
         except RuntimeError as exc:
             return str(exc)
+
+    def chat_stream(self, messages: list[Message]) -> Generator[str, None, None]:
+        """Run one user turn, streaming tokens for the final response.
+
+        Executes tools if needed, then yields text chunks for the answer.
+        """
+        t_mem0 = time.perf_counter()
+        memory_context = ""
+        if self._memory_enabled and self._store and messages:
+            user_text = ""
+            for msg in reversed(messages):
+                if msg.get("role") == "user":
+                    user_text = msg.get("content", "")
+                    break
+
+            if user_text:
+                try:
+                    recalled = self._store.search_memories(user_text, limit=5)
+                    if recalled:
+                        lines = [
+                            f"- [{m.get('category', 'fact')}, imp:{m.get('importance', 3)}] {m.get('text')} (ID: {m.get('id')})"
+                            for m in recalled
+                        ]
+                        memory_context = "\n".join(lines)
+                except Exception as exc:
+                    logger.warning("Failed to recall memories for query: %s", exc)
+
+        self.last_memory_search_ms = round((time.perf_counter() - t_mem0) * 1000.0, 1)
+
+        system_prompt = self._persona.build_system_prompt(
+            tool_summary=self._registry.summary(),
+            memory_context=memory_context,
+        )
+        tool_schemas = self._registry.as_schema()
+        loop_messages = list(messages)
+
+        # Check tool calls
+        for step in range(1, MAX_STEPS + 1):
+            try:
+                response: LLMResponse = self._provider.generate(
+                    messages=loop_messages,
+                    tools=tool_schemas if tool_schemas else None,
+                    system_prompt=system_prompt,
+                )
+            except RuntimeError as exc:
+                yield str(exc)
+                return
+
+            if response.is_empty:
+                yield "(I didn't get a response. Please try again.)"
+                return
+
+            if not response.has_tool_calls:
+                # No tools called -> stream tokens if possible, or yield text
+                text = response.text.strip() or "(No text in response.)"
+                yield text
+                return
+
+            # Tool call executed
+            tool_result_messages = self._handle_tool_calls(response.tool_calls)
+            loop_messages.append({
+                "role": "assistant",
+                "content": response.text,
+                "_tool_calls": [
+                    {"id": tc.id, "name": tc.name, "args": tc.args}
+                    for tc in response.tool_calls
+                ],
+                "_raw_content": response.raw_content,
+            })
+            loop_messages.extend(tool_result_messages)
+
+        # After tool execution, stream final reply
+        try:
+            for chunk in self._provider.stream(
+                messages=loop_messages,
+                tools=None,
+                system_prompt=system_prompt,
+            ):
+                if chunk:
+                    yield chunk
+        except Exception:
+            final = self._provider.generate(
+                messages=loop_messages,
+                tools=None,
+                system_prompt=system_prompt,
+            )
+            yield final.text.strip() or "(No text in response.)"
 
     # ------------------------------------------------------------------
     # Internal helpers

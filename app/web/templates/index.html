@@ -351,6 +351,7 @@
 
     <div class="metrics-bar" id="metrics-bar">
       <span>STT: <b id="m-stt">—</b></span>
+      <span>Memory: <b id="m-mem">—</b></span>
       <span>LLM 1st Token: <b id="m-llm">—</b></span>
       <span>TTS 1st Audio: <b id="m-tts">—</b></span>
       <span>Total Turn: <b id="m-total">—</b></span>
@@ -496,10 +497,12 @@
         consoleEl.scrollTop = consoleEl.scrollHeight;
       } else if (event.type === "metrics") {
         const m = event.metrics;
-        if (m.stt_ms) document.getElementById("m-stt").innerText = `${m.stt_ms} ms`;
-        if (m.llm_first_token_ms) document.getElementById("m-llm").innerText = `${m.llm_first_token_ms} ms`;
-        if (m.tts_first_word_ms) document.getElementById("m-tts").innerText = `${m.tts_first_word_ms} ms`;
-        if (m.total_turn_ms) document.getElementById("m-total").innerText = `${m.total_turn_ms} ms`;
+        if (m.stt_ms !== undefined) document.getElementById("m-stt").innerText = `${m.stt_ms} ms`;
+        if (m.memory_search_ms !== undefined) document.getElementById("m-mem").innerText = `${m.memory_search_ms} ms`;
+        if (m.llm_first_token_ms !== undefined) document.getElementById("m-llm").innerText = `${m.llm_first_token_ms} ms`;
+        if (m.tts_first_audio_ms !== undefined) document.getElementById("m-tts").innerText = `${m.tts_first_audio_ms} ms`;
+        else if (m.tts_first_word_ms !== undefined) document.getElementById("m-tts").innerText = `${m.tts_first_word_ms} ms`;
+        if (m.total_turn_ms !== undefined) document.getElementById("m-total").innerText = `${m.total_turn_ms} ms`;
       } else if (event.type === "mute_change") {
         updateMuteButton(event.muted);
       }
@@ -540,6 +543,18 @@
         showToast("Error triggering voice.");
       }
     }
+
+    // Global Hotkey: Space or 'v' triggers Push-To-Talk when not editing inputs
+    document.addEventListener("keydown", (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+      if (activeTag === "input" || activeTag === "textarea" || activeTag === "select") {
+        return;
+      }
+      if (e.code === "Space" || e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        triggerPTT();
+      }
+    });
 
     async function toggleMute() {
       try {

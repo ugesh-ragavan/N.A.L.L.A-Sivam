@@ -198,10 +198,27 @@ class VoicePipeline:
                 "confidence": confidence,
             })
 
+            # Greeting fast-path: "Nalla!" or "Nalla"
+            clean_cmd = user_text.rstrip("!").lower()
+            if clean_cmd == "nalla":
+                reply = "Yes boss, sollunga!"
+                metrics["memory_search_ms"] = 0.0
+                metrics["llm_first_token_ms"] = 0.0
+                self._speak_phrase(reply, metrics, speech_end_time)
+                metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+                logger.info("Voice turn metrics (greeting): %s", metrics)
+                self._broadcast({"type": "metrics", "metrics": metrics})
+                self.set_state(VoiceState.IDLE)
+                return reply
+
             # Check for low confidence or empty speech
             if not user_text or (confidence < 0.15 and len(user_text) < 4):
                 logger.info("Unrecognized speech (text='%s', conf: %.2f) — fallback phrase.", user_text, confidence)
-                self._speak_phrase("Sorry boss, didn't catch that.")
+                metrics["memory_search_ms"] = 0.0
+                metrics["llm_first_token_ms"] = 0.0
+                self._speak_phrase("Sorry boss, didn't catch that.", metrics, speech_end_time)
+                metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+                self._broadcast({"type": "metrics", "metrics": metrics})
                 self.set_state(VoiceState.IDLE)
                 return "Sorry boss, didn't catch that."
 
@@ -225,8 +242,11 @@ class VoicePipeline:
             if self.agent is None:
                 reply = f"Voice test mode received: {user_text}"
                 first_token_time = time.perf_counter()
+                metrics["memory_search_ms"] = 0.0
                 metrics["llm_first_token_ms"] = round((first_token_time - llm_start) * 1000.0, 1)
                 self._speak_phrase(reply, metrics, speech_end_time)
+                metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+                self._broadcast({"type": "metrics", "metrics": metrics})
                 self.set_state(VoiceState.IDLE)
                 return reply
 
@@ -283,50 +303,89 @@ class VoicePipeline:
             logger.debug("Could not persist voice user turn: %s", exc)
 
         try:
-            # We call agent.chat() to handle tools & persona properly
-            reply = self.agent.chat(messages)
-            full_response = reply
+            stream_gen = (
+                self.agent.chat_stream(messages)
+                if hasattr(self.agent, "chat_stream")
+                else iter([self.agent.chat(messages)])
+            )
+
+            sentence_buffer = ""
+            full_chunks = []
+
+            for chunk in stream_gen:
+                if not chunk:
+                    continue
+                if not first_token_recorded:
+                    first_token_recorded = True
+                    metrics["llm_first_token_ms"] = round((time.perf_counter() - llm_start_time) * 1000.0, 1)
+
+                sentence_buffer += chunk
+                full_chunks.append(chunk)
+
+                # Split on sentence boundaries: ., !, ?, \n
+                while True:
+                    match = re.search(r"([.!?]+(?:\s+|\n+)|[\n]+)", sentence_buffer)
+                    if not match:
+                        break
+                    end_pos = match.end()
+                    sentence = sentence_buffer[:end_pos].strip()
+                    sentence_buffer = sentence_buffer[end_pos:]
+
+                    if not sentence:
+                        continue
+
+                    clean_sentence = sanitize_text_for_speech(sentence)
+                    if not clean_sentence:
+                        continue
+
+                    if self._interrupt_event.is_set():
+                        break
+
+                    self.set_state(VoiceState.SPEAKING)
+                    logger.info("Synthesizing completed sentence: '%s'", clean_sentence)
+                    audio_bytes = self.tts.synthesize(clean_sentence)
+
+                    if not first_audio_played:
+                        first_audio_played = True
+                        tts_time = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+                        metrics["tts_first_audio_ms"] = tts_time
+                        metrics["tts_first_word_ms"] = tts_time
+
+                    if self._interrupt_event.is_set():
+                        break
+
+                    logger.info("Playing audio (%d bytes)...", len(audio_bytes))
+                    self.player.play_audio_bytes(audio_bytes, block=True)
+                    logger.info("Sentence playback complete.")
+
+                if self._interrupt_event.is_set():
+                    break
+
+            # Flush any remaining text in sentence_buffer
+            remaining = sentence_buffer.strip()
+            if remaining and not self._interrupt_event.is_set():
+                clean_sentence = sanitize_text_for_speech(remaining)
+                if clean_sentence:
+                    self.set_state(VoiceState.SPEAKING)
+                    logger.info("Synthesizing final sentence: '%s'", clean_sentence)
+                    audio_bytes = self.tts.synthesize(clean_sentence)
+                    if not first_audio_played:
+                        first_audio_played = True
+                        tts_time = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+                        metrics["tts_first_audio_ms"] = tts_time
+                        metrics["tts_first_word_ms"] = tts_time
+                    self.player.play_audio_bytes(audio_bytes, block=True)
+
+            full_response = "".join(full_chunks).strip()
+            metrics["memory_search_ms"] = getattr(self.agent, "last_memory_search_ms", 0.0)
+            self._broadcast({"type": "transcript", "role": "assistant", "text": full_response})
 
             # Persist assistant reply
             try:
                 from app.memory.store import store
-                store.save_message("voice", "assistant", reply)
+                store.save_message("voice", "assistant", full_response)
             except Exception as exc:
                 logger.debug("Could not persist voice assistant turn: %s", exc)
-
-            metrics["llm_total_ms"] = round((time.perf_counter() - llm_start_time) * 1000.0, 1)
-
-            # Split into natural sentences
-            sentences = [s.strip() for s in _SENTENCE_END_RE.split(reply) if s.strip()]
-            if not sentences:
-                sentences = [reply]
-
-            self.set_state(VoiceState.SPEAKING)
-            self._broadcast({"type": "transcript", "role": "assistant", "text": reply})
-
-            for s in sentences:
-                if self._interrupt_event.is_set():
-                    logger.info("Speech interrupted before sentence: %s", s[:30])
-                    break
-
-                clean_sentence = sanitize_text_for_speech(s)
-                if not clean_sentence:
-                    continue
-
-                logger.info("Synthesizing sentence for speech: '%s'", clean_sentence)
-                audio_bytes = self.tts.synthesize(clean_sentence)
-
-                if not first_audio_played:
-                    first_audio_played = True
-                    metrics["tts_first_word_ms"] = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
-
-                if self._interrupt_event.is_set():
-                    break
-
-                # Play audio (blocking this sentence until complete or interrupted)
-                logger.info("Playing audio (%d bytes)...", len(audio_bytes))
-                self.player.play_audio_bytes(audio_bytes, block=True)
-                logger.info("Sentence playback complete.")
 
         except Exception as exc:
             logger.error("Failed during streaming agent speech: %s", exc)
@@ -352,7 +411,9 @@ class VoicePipeline:
             logger.info("Synthesizing phrase: '%s'", clean)
             audio_bytes = self.tts.synthesize(clean)
             if metrics is not None and speech_end_time is not None:
-                metrics["tts_first_word_ms"] = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+                tts_time = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+                metrics["tts_first_audio_ms"] = tts_time
+                metrics["tts_first_word_ms"] = tts_time
             logger.info("Playing phrase audio (%d bytes)...", len(audio_bytes))
             self.player.play_audio_bytes(audio_bytes, block=True)
             logger.info("Phrase playback complete.")

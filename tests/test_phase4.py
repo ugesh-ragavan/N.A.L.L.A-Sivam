@@ -223,6 +223,63 @@ class TestPipeline:
         pipeline.interrupt()
         assert dummy_player.stopped is True
 
+    def test_greeting_fast_path(self):
+        dummy_player = DummyPlayer()
+        pipeline = VoicePipeline(
+            recorder=AudioRecorder(),
+            player=dummy_player,
+            stt=DummySTT(text="Nalla!"),
+            wakeword=PushToTalk(),
+        )
+        # Mock vad to return audio
+        pipeline.vad.record_speech_segment = lambda **kwargs: b"\x00" * 3200
+        reply = pipeline.run_single_turn()
+        assert reply == "Yes boss, sollunga!"
+        assert len(dummy_player.played_audio) > 0
+
+    def test_low_confidence_fallback(self):
+        dummy_player = DummyPlayer()
+        pipeline = VoicePipeline(
+            recorder=AudioRecorder(),
+            player=dummy_player,
+            stt=DummySTT(text="", conf=0.0),
+            wakeword=PushToTalk(),
+        )
+        pipeline.vad.record_speech_segment = lambda **kwargs: b"\x00" * 3200
+        reply = pipeline.run_single_turn()
+        assert "Sorry boss, didn't catch that." in reply
+
+    def test_streaming_sentence_execution_and_timings(self):
+        dummy_player = DummyPlayer()
+        metrics_collected = []
+
+        class StreamingAgent:
+            last_memory_search_ms = 4.2
+            def chat_stream(self, messages):
+                yield "The time is 10:00 AM. "
+                yield "Everything is running smoothly."
+
+        pipeline = VoicePipeline(
+            agent=StreamingAgent(),
+            recorder=AudioRecorder(),
+            player=dummy_player,
+            stt=DummySTT(text="what time is it", conf=0.95),
+            wakeword=PushToTalk(),
+        )
+        pipeline.vad.record_speech_segment = lambda **kwargs: b"\x00" * 3200
+        pipeline.subscribe(lambda evt: metrics_collected.append(evt) if evt.get("type") == "metrics" else None)
+
+        reply = pipeline.run_single_turn()
+        assert "10:00 AM" in reply
+        assert len(dummy_player.played_audio) >= 2  # Each completed sentence synthesized and played!
+        assert len(metrics_collected) == 1
+        m = metrics_collected[0]["metrics"]
+        assert "stt_ms" in m
+        assert "memory_search_ms" in m
+        assert "llm_first_token_ms" in m
+        assert "tts_first_audio_ms" in m
+        assert "total_turn_ms" in m
+
 
 # ---------------------------------------------------------------------------
 # 7. Voice Web Dashboard API Tests
