@@ -2,10 +2,11 @@
 
 FastAPI localhost dashboard web server.
 
-Exposes REST APIs and a localhost web interface for:
+Exposes REST APIs, WebSockets, and a localhost web interface for:
   • Memory management (search, category filter, inline edit, delete with confirm, add form, JSON export)
   • Reminders management (view, add, mark completed)
-  • Settings toggle for memory (memory on/off switch)
+  • Phase 4 Voice Control (live state, push-to-talk, mic mute, test mic/speaker, WebSockets)
+  • Settings toggle for memory and voice parameters
 
 Safety rules (CONTEXT.md):
   • Binds strictly to 127.0.0.1 (never 0.0.0.0)
@@ -14,23 +15,26 @@ Safety rules (CONTEXT.md):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from app import config
 from app.config import BASE_DIR, WEB_HOST, WEB_PORT
 from app.memory.store import store
+from app.voice.audio_io import list_input_devices, list_output_devices
+from app.voice.pipeline import default_pipeline
 
 logger = logging.getLogger("nalla.web")
 
 app = FastAPI(
     title="NALLA SIVAM Dashboard",
-    description="Localhost-only JARVIS control panel and memory management.",
+    description="Localhost-only JARVIS control panel, memory management, and voice pipeline.",
     version="1.0.0",
 )
 
@@ -60,6 +64,64 @@ class SettingsUpdate(BaseModel):
     memory_enabled: bool
 
 
+class MuteRequest(BaseModel):
+    muted: bool
+
+
+# ---------------------------------------------------------------------------
+# WebSocket Manager for Voice Events
+# ---------------------------------------------------------------------------
+
+class ConnectionManager:
+    """Manages active browser WebSocket connections for real-time voice updates."""
+
+    def __init__(self) -> None:
+        self.active_connections: list[WebSocket] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.debug("WebSocket client connected. Total: %d", len(self.active_connections))
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            logger.debug("WebSocket client disconnected. Total: %d", len(self.active_connections))
+
+    def broadcast_sync(self, message: dict[str, Any]) -> None:
+        """Thread-safe event broadcast to all connected WebSockets."""
+        if not self.active_connections:
+            return
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            asyncio.create_task(self._send_all(message))
+        else:
+            # Called from a background thread
+            try:
+                loop = asyncio.get_event_loop()
+                loop.call_soon_threadsafe(lambda: asyncio.create_task(self._send_all(message)))
+            except Exception:
+                pass
+
+    async def _send_all(self, message: dict[str, Any]) -> None:
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json(message)
+            except Exception:
+                self.disconnect(connection)
+
+
+ws_manager = ConnectionManager()
+# Subscribe ws_manager to pipeline events
+default_pipeline.subscribe(ws_manager.broadcast_sync)
+
+
 # ---------------------------------------------------------------------------
 # HTML Dashboard Page
 # ---------------------------------------------------------------------------
@@ -73,6 +135,91 @@ def get_dashboard() -> str:
     if _HTML_TEMPLATE_PATH.exists():
         return _HTML_TEMPLATE_PATH.read_text(encoding="utf-8")
     return "<h1>NALLA SIVAM Dashboard</h1><p>Template not found.</p>"
+
+
+@app.websocket("/ws/voice")
+async def websocket_voice_endpoint(websocket: WebSocket) -> None:
+    """WebSocket endpoint streaming live voice pipeline events."""
+    await ws_manager.connect(websocket)
+    try:
+        # Send initial state
+        await websocket.send_json({
+            "type": "state_change",
+            "state": default_pipeline.state.value,
+            "muted": default_pipeline.is_muted,
+        })
+        while True:
+            # Keep connection alive; process browser client messages
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as exc:
+        logger.debug("WebSocket error: %s", exc)
+        ws_manager.disconnect(websocket)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Voice REST Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/audio/devices")
+def get_audio_devices() -> dict[str, Any]:
+    """List available microphone and speaker hardware devices."""
+    return {
+        "input_devices": list_input_devices(),
+        "output_devices": list_output_devices(),
+    }
+
+
+@app.post("/api/voice/trigger")
+def trigger_voice_turn() -> dict[str, Any]:
+    """Trigger push-to-talk voice interaction."""
+    default_pipeline.trigger_wakeword()
+    return {"ok": True, "state": default_pipeline.state.value}
+
+
+@app.post("/api/voice/mute")
+def toggle_voice_mute(req: MuteRequest) -> dict[str, Any]:
+    """Mute or unmute the microphone."""
+    default_pipeline.set_muted(req.muted)
+    return {"ok": True, "muted": default_pipeline.is_muted}
+
+
+@app.post("/api/voice/interrupt")
+def interrupt_voice() -> dict[str, Any]:
+    """Interrupt ongoing speech playback."""
+    default_pipeline.interrupt()
+    return {"ok": True, "state": default_pipeline.state.value}
+
+
+@app.post("/api/voice/test-speaker")
+def test_speaker() -> dict[str, Any]:
+    """Play a test sentence through the active speaker."""
+    phrase = "Speaker test: Nalla Sivam voice online."
+    import threading
+    threading.Thread(target=default_pipeline._speak_phrase, args=(phrase,), daemon=True).start()
+    return {"ok": True, "message": "Speaker test initiated."}
+
+
+@app.post("/api/voice/test-mic")
+def test_microphone() -> dict[str, Any]:
+    """Record 1.5 seconds of audio to verify microphone input levels."""
+    import numpy as np
+    audio = default_pipeline.recorder.record_fixed(1.5)
+    if not audio:
+        return {"ok": False, "message": "No audio captured from microphone."}
+
+    data = np.frombuffer(audio, dtype=np.int16)
+    peak = int(np.max(np.abs(data)))
+    rms = float(np.sqrt(np.mean(data.astype(np.float64) ** 2)))
+    return {
+        "ok": True,
+        "peak": peak,
+        "rms": round(rms, 2),
+        "message": f"Microphone active (Peak: {peak}, RMS: {rms:.1f})",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +335,12 @@ def get_settings() -> dict[str, Any]:
         "model": config.GEMINI_MODEL,
         "host": config.WEB_HOST,
         "port": config.WEB_PORT,
+        "whisper_model": config.WHISPER_MODEL,
+        "whisper_language": config.WHISPER_LANGUAGE,
+        "tts_engine": config.TTS_ENGINE,
+        "tts_voice": config.TTS_VOICE,
+        "tts_voice_ta": config.TTS_VOICE_TA,
+        "wake_word_engine": config.WAKE_WORD_ENGINE,
     }
 
 
@@ -206,6 +359,13 @@ def update_settings(item: SettingsUpdate) -> dict[str, Any]:
 def run_server() -> None:
     """Launch the uvicorn web server bound strictly to localhost."""
     import uvicorn
+    # Connect agent to pipeline if available
+    try:
+        from app.main import _build_agent
+        default_pipeline.agent = _build_agent()
+    except Exception as exc:
+        logger.debug("Deferred agent attachment: %s", exc)
+
     # Enforce localhost-only binding
     host = "127.0.0.1" if WEB_HOST in ("localhost", "127.0.0.1") else WEB_HOST
     logger.info("Starting dashboard at http://%s:%d", host, WEB_PORT)

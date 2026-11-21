@@ -14,7 +14,7 @@ Tagline options (pick one for the README and splash screen):
 
 ## 2. The name
 
-The name - NALLA SiVaM
+The name - NALLA SiVaM - not a lame logical assistant, siripudam vazhum manidhan
 not a lame logical assistant, siripudam inidhaai vazhum anbu manidhan
 
 **NALLA** (நல்ல) means "good" in Tamil. It is also the wake word: say *"Nalla!"* and the reply is *"Yes boss, sollunga!"* As an acronym it is the cheeky engineer's promise: **N**ot **A**nother **L**ame **L**ogical **A**ssistant. No robotic, customer-support voice.

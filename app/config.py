@@ -68,3 +68,20 @@ MQTT_PASSWORD: str = _require("MQTT_PASSWORD", "")
 
 # Phase 3: Memory setting
 MEMORY_ENABLED: bool = _require("MEMORY_ENABLED", "true").lower() in ("true", "1", "yes")
+
+# Phase 4: Voice settings
+_dev_in = os.getenv("AUDIO_INPUT_DEVICE", "").strip()
+AUDIO_INPUT_DEVICE: int | None = int(_dev_in) if _dev_in.isdigit() else None
+
+_dev_out = os.getenv("AUDIO_OUTPUT_DEVICE", "").strip()
+AUDIO_OUTPUT_DEVICE: int | None = int(_dev_out) if _dev_out.isdigit() else None
+
+WHISPER_MODEL: str = _require("WHISPER_MODEL", "base")
+WHISPER_LANGUAGE: str = _require("WHISPER_LANGUAGE", "auto")
+TTS_ENGINE: str = _require("TTS_ENGINE", "edge-tts")
+TTS_VOICE: str = _require("TTS_VOICE", "en-IN-NeerjaNeural")
+TTS_VOICE_TA: str = _require("TTS_VOICE_TA", "ta-IN-PallaviNeural")
+WAKE_WORD_ENGINE: str = _require("WAKE_WORD_ENGINE", "pushtotalk")
+WAKE_WORD_KEYWORD: str = _require("WAKE_WORD_KEYWORD", "hey jarvis")
+WAKE_WORD_SENSITIVITY: float = float(os.getenv("WAKE_WORD_SENSITIVITY", "0.5"))
+VAD_AGGRESSIVENESS: int = _int_env("VAD_AGGRESSIVENESS", 2)

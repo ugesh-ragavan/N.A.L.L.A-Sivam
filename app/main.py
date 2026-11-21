@@ -44,10 +44,11 @@ def _build_agent():
     from app.brain.persona import persona
     from app.core.approvals import ApprovalManager
     from app.brain.agent import Agent
+    from app.voice.pipeline import default_pipeline
 
     provider  = GeminiProvider()
     approvals = ApprovalManager()          # uses terminal callback by default
-    return Agent(
+    agent = Agent(
         provider,
         registry,
         persona,
@@ -55,6 +56,9 @@ def _build_agent():
         store=store,
         memory_enabled=MEMORY_ENABLED,
     )
+    # Attach agent to voice pipeline
+    default_pipeline.agent = agent
+    return agent
 
 
 def _start_reminders_scheduler() -> None:
@@ -63,17 +67,21 @@ def _start_reminders_scheduler() -> None:
     import threading
     from app.memory.scheduler import reminders_loop
 
+    def _on_reminder(r):
+        print(f"\n\a[REMINDER]: {r['text']} (due {r['due_at']})\nYou: ", end="", flush=True)
+        try:
+            from app.voice.pipeline import default_pipeline
+            default_pipeline.speak_reminder(r["text"])
+        except Exception as exc:
+            logging.getLogger("nalla.memory.scheduler").debug("Could not speak reminder: %s", exc)
+
     def _worker():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             loop.run_until_complete(
                 reminders_loop(
-                    callback=lambda r: print(
-                        f"\n\a[REMINDER]: {r['text']} (due {r['due_at']})\nYou: ",
-                        end="",
-                        flush=True,
-                    ),
+                    callback=_on_reminder,
                     interval=30.0,
                     store_instance=store,
                 )
@@ -83,6 +91,35 @@ def _start_reminders_scheduler() -> None:
 
     thread = threading.Thread(target=_worker, daemon=True, name="RemindersScheduler")
     thread.start()
+
+
+def _run_voice() -> None:
+    """Interactive voice session (hands-free / push-to-talk)."""
+    logger = logging.getLogger("nalla")
+    _print_banner(logger)
+    logger.info("Phase 4 voice session starting...")
+    _start_reminders_scheduler()
+    _build_agent()
+    from app.voice.pipeline import default_pipeline
+
+    print("\n" + "="*60)
+    print("  NALLA SIVAM — Voice Mode (Phase 4)")
+    print("  Press Enter to trigger Push-To-Talk, or type 'exit' to leave")
+    print("="*60 + "\n")
+
+    while True:
+        try:
+            cmd = input("[Press Enter to speak / 'exit' to quit]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nNalla: Take care, boss. Bye!")
+            break
+        if cmd.lower() in ("exit", "quit", "bye"):
+            print("Nalla: Take care, boss. Bye!")
+            break
+        print("Listening... (speak now)")
+        reply = default_pipeline.run_single_turn()
+        if reply:
+            print(f"Nalla: {reply}\n")
 
 
 def _run_chat() -> None:
@@ -170,11 +207,15 @@ def main() -> None:
         logger.info("Initializing NALLA SIVAM...")
         logger.info("Model   : %s", GEMINI_MODEL)
         logger.info("Dashboard bound to %s:%d", WEB_HOST, WEB_PORT)
-        logger.info("Phase 3 ready. Run `python -m app chat` or `python -m app dashboard`.")
+        logger.info("Phase 4 ready. Run `python -m app chat`, `python -m app voice`, or `python -m app dashboard`.")
         return
 
     if args[0] == "chat":
         _run_chat()
+        return
+
+    if args[0] == "voice":
+        _run_voice()
         return
 
     if args[0] in ("dashboard", "web"):
@@ -183,7 +224,7 @@ def main() -> None:
         run_server()
         return
 
-    logger.error("Unknown command: %s. Available: chat, dashboard", args[0])
+    logger.error("Unknown command: %s. Available: chat, voice, dashboard", args[0])
     sys.exit(1)
 
 

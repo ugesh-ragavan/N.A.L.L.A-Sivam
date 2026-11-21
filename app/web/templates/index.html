@@ -19,6 +19,7 @@
       --amber: #d29922;
       --red: #da3633;
       --red-hover: #f85149;
+      --purple: #8957e5;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -120,12 +121,84 @@
     .btn-green:hover { background: var(--green-hover); }
     .btn-red { background: var(--red); }
     .btn-red:hover { background: var(--red-hover); }
+    .btn-purple { background: var(--purple); }
     .btn-outline {
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text);
     }
     .btn-outline:hover { background: var(--border); color: var(--text-bright); }
+
+    /* Voice state indicator styles */
+    .voice-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: #30363d;
+      color: #fff;
+    }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .status-idle { background: #23863633; color: #3fb950; }
+    .status-listening {
+      background: #1f6feb33;
+      color: #58a6ff;
+      animation: pulse-listening 1.5s infinite;
+    }
+    .status-transcribing { background: #d2992233; color: #e3b341; }
+    .status-thinking { background: #d2992233; color: #e3b341; }
+    .status-speaking {
+      background: #8957e533;
+      color: #d2a8ff;
+      animation: pulse-speaking 1.2s infinite;
+    }
+
+    @keyframes pulse-listening {
+      0% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(88, 166, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0); }
+    }
+    @keyframes pulse-speaking {
+      0% { box-shadow: 0 0 0 0 rgba(163, 113, 247, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(163, 113, 247, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(163, 113, 247, 0); }
+    }
+
+    .voice-console {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      min-height: 100px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.88rem;
+      margin-top: 14px;
+    }
+
+    .metrics-bar {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      padding: 8px 12px;
+      background: #13171f;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-top: 10px;
+    }
 
     table {
       width: 100%;
@@ -245,6 +318,45 @@
     </div>
   </header>
 
+  <!-- Phase 4: Live Voice Control Panel -->
+  <div class="card" style="border-left: 4px solid var(--accent);">
+    <div class="card-title">
+      <span>🎙️ Live Voice Loop (Phase 4)</span>
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <span id="voice-pill" class="voice-status-pill status-idle">
+          <span class="pulse-dot"></span>
+          <span id="voice-state-text">IDLE</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="toolbar" style="align-items: center;">
+      <button id="ptt-btn" class="btn btn-green" onclick="triggerPTT()">🎤 Push-To-Talk</button>
+      <button id="mute-btn" class="btn btn-outline" onclick="toggleMute()">🎙️ Mute Mic</button>
+      <button class="btn btn-red" onclick="interruptVoice()">⏹ Interrupt</button>
+      <button class="btn btn-outline" onclick="testSpeaker()">🔊 Test Speaker</button>
+      <button class="btn btn-outline" onclick="testMic()">🎙️ Test Mic</button>
+
+      <div style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto;">
+        <label style="font-size: 0.8rem; color: var(--text-dim);">Input Device:</label>
+        <select id="audio-device-select" style="max-width: 250px;">
+          <option value="">Default Microphone</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="voice-console" id="voice-console">
+      <div style="color: var(--text-dim);">[Voice system initialized. Ready for speech interaction.]</div>
+    </div>
+
+    <div class="metrics-bar" id="metrics-bar">
+      <span>STT: <b id="m-stt">—</b></span>
+      <span>LLM 1st Token: <b id="m-llm">—</b></span>
+      <span>TTS 1st Audio: <b id="m-tts">—</b></span>
+      <span>Total Turn: <b id="m-total">—</b></span>
+    </div>
+  </div>
+
   <!-- Add Memory Form -->
   <div class="card">
     <div class="card-title">Add New Memory</div>
@@ -343,6 +455,153 @@
       setTimeout(() => t.classList.remove("show"), 3000);
     }
 
+    // ---------------------------------------------------------------
+    // WebSocket & Voice Pipeline
+    // ---------------------------------------------------------------
+    let isMuted = false;
+    let ws = null;
+
+    function initVoiceWebSocket() {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${location.host}/ws/voice`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleVoiceEvent(data);
+        } catch (e) {
+          console.error("Invalid WS message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(initVoiceWebSocket, 2000);
+      };
+    }
+
+    function handleVoiceEvent(event) {
+      if (event.type === "state_change") {
+        updateVoicePill(event.state);
+        if (event.muted !== undefined) {
+          updateMuteButton(event.muted);
+        }
+      } else if (event.type === "transcript") {
+        const consoleEl = document.getElementById("voice-console");
+        const color = event.role === "user" ? "var(--accent)" : "var(--green)";
+        const label = event.role === "user" ? "You" : "Nalla";
+        const line = document.createElement("div");
+        line.innerHTML = `<span style="color:${color}; font-weight:bold;">${label}:</span> ${escapeHtml(event.text)}`;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+      } else if (event.type === "metrics") {
+        const m = event.metrics;
+        if (m.stt_ms) document.getElementById("m-stt").innerText = `${m.stt_ms} ms`;
+        if (m.llm_first_token_ms) document.getElementById("m-llm").innerText = `${m.llm_first_token_ms} ms`;
+        if (m.tts_first_word_ms) document.getElementById("m-tts").innerText = `${m.tts_first_word_ms} ms`;
+        if (m.total_turn_ms) document.getElementById("m-total").innerText = `${m.total_turn_ms} ms`;
+      } else if (event.type === "mute_change") {
+        updateMuteButton(event.muted);
+      }
+    }
+
+    function updateVoicePill(state) {
+      const pill = document.getElementById("voice-pill");
+      const text = document.getElementById("voice-state-text");
+      text.innerText = state;
+      pill.className = "voice-status-pill";
+
+      if (state === "IDLE") pill.classList.add("status-idle");
+      else if (state === "LISTENING") pill.classList.add("status-listening");
+      else if (state === "TRANSCRIBING") pill.classList.add("status-transcribing");
+      else if (state === "THINKING") pill.classList.add("status-thinking");
+      else if (state === "SPEAKING") pill.classList.add("status-speaking");
+    }
+
+    function updateMuteButton(muted) {
+      isMuted = muted;
+      const btn = document.getElementById("mute-btn");
+      if (muted) {
+        btn.innerText = "🔇 Unmute Mic";
+        btn.classList.add("btn-red");
+        btn.classList.remove("btn-outline");
+      } else {
+        btn.innerText = "🎙️ Mute Mic";
+        btn.classList.remove("btn-red");
+        btn.classList.add("btn-outline");
+      }
+    }
+
+    async function triggerPTT() {
+      try {
+        await fetch("/api/voice/trigger", { method: "POST" });
+        showToast("Voice listening triggered.");
+      } catch (e) {
+        showToast("Error triggering voice.");
+      }
+    }
+
+    async function toggleMute() {
+      try {
+        await fetch("/api/voice/mute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ muted: !isMuted })
+        });
+      } catch (e) {
+        showToast("Error toggling mute.");
+      }
+    }
+
+    async function interruptVoice() {
+      try {
+        await fetch("/api/voice/interrupt", { method: "POST" });
+        showToast("Interrupted speech.");
+      } catch (e) {
+        showToast("Error interrupting.");
+      }
+    }
+
+    async function testSpeaker() {
+      try {
+        await fetch("/api/voice/test-speaker", { method: "POST" });
+        showToast("Playing speaker test...");
+      } catch (e) {
+        showToast("Error playing speaker test.");
+      }
+    }
+
+    async function testMic() {
+      showToast("Recording 1.5s for mic test...");
+      try {
+        const res = await fetch("/api/voice/test-mic", { method: "POST" });
+        const data = await res.json();
+        showToast(data.message);
+      } catch (e) {
+        showToast("Error testing microphone.");
+      }
+    }
+
+    async function loadAudioDevices() {
+      try {
+        const res = await fetch("/api/audio/devices");
+        const data = await res.json();
+        const sel = document.getElementById("audio-device-select");
+        sel.innerHTML = '<option value="">Default Microphone</option>';
+        data.input_devices.forEach(d => {
+          const opt = document.createElement("option");
+          opt.value = d.index;
+          opt.innerText = `${d.name} (${d.channels} ch)`;
+          sel.appendChild(opt);
+        });
+      } catch (e) {
+        console.error("Failed loading audio devices", e);
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // Memory & Settings Functions
+    // ---------------------------------------------------------------
     async function loadSettings() {
       try {
         const res = await fetch("/api/settings");
@@ -560,6 +819,8 @@
     document.getElementById("rem-due").value = localIso;
 
     // Initial load
+    initVoiceWebSocket();
+    loadAudioDevices();
     loadSettings();
     loadMemories();
     loadReminders();

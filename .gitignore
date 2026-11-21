@@ -49,9 +49,15 @@ data/logs/
 
 # Audio temp / model caches
 models/
+data/models/
 piper_models/
 *.wav
 *.mp3
+
+# External reference archives
+open sources/
+Javis open source/
+*.zip
 
 # IDE / OS files
 .vscode/

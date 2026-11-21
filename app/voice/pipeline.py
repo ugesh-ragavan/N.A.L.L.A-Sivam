@@ -1,1 +1,343 @@
-"""Voice state machine pipeline."""
+"""app/voice/pipeline.py
+
+Voice Pipeline State Machine & Execution Loop.
+
+State Machine:
+  IDLE -> LISTENING -> TRANSCRIBING -> THINKING -> SPEAKING -> IDLE
+
+Rules:
+  1. Microphone is muted while speaking to prevent feedback loops.
+  2. A new wake word / push-to-talk while SPEAKING interrupts playback immediately.
+  3. If STT returns empty or low confidence (<0.25), speak "Sorry boss, didn't catch that."
+  4. Stream the model's reply and synthesize/play sentence-by-sentence for lowest latency.
+  5. Log and broadcast latency timings (STT, LLM first token, TTS start).
+  6. Sanitize spoken replies (strip markdown, code, emoji).
+"""
+
+from __future__ import annotations
+
+import collections
+import logging
+import re
+import threading
+import time
+from enum import Enum
+from typing import Any, Callable, Generator
+
+from app.brain.agent import Agent
+from app.voice.audio_io import AudioPlayer, AudioRecorder, default_player, default_recorder
+from app.voice.stt import FasterWhisperSTT, SpeechToTextProvider, stt_engine
+from app.voice.tts import TTSManager, sanitize_text_for_speech, tts_engine
+from app.voice.vad import VoiceActivityDetector, default_vad
+from app.voice.wakeword import PushToTalk, WakeWordDetector, default_wakeword
+
+logger = logging.getLogger("nalla.voice.pipeline")
+
+# Sentence boundary regex for streaming speech chunks
+_SENTENCE_END_RE = re.compile(r"(?<=[.!?\n])\s+")
+
+
+class VoiceState(str, Enum):
+    IDLE = "IDLE"
+    LISTENING = "LISTENING"
+    TRANSCRIBING = "TRANSCRIBING"
+    THINKING = "THINKING"
+    SPEAKING = "SPEAKING"
+
+
+class VoicePipeline:
+    """Manages the full listen -> STT -> think -> TTS -> speak cycle."""
+
+    def __init__(
+        self,
+        agent: Agent | None = None,
+        recorder: AudioRecorder | None = None,
+        player: AudioPlayer | None = None,
+        vad: VoiceActivityDetector | None = None,
+        stt: SpeechToTextProvider | None = None,
+        tts: TTSManager | None = None,
+        wakeword: WakeWordDetector | None = None,
+    ) -> None:
+        self.agent = agent
+        self.recorder = recorder or default_recorder
+        self.player = player or default_player
+        self.vad = vad or default_vad
+        self.stt = stt or stt_engine
+        self.tts = tts or tts_engine
+        self.wakeword = wakeword or default_wakeword
+
+        self._state = VoiceState.IDLE
+        self._is_running = False
+        self._is_muted = False
+        self._interrupt_event = threading.Event()
+        self._state_subscribers: list[Callable[[dict[str, Any]], None]] = []
+        self._lock = threading.Lock()
+
+        # Connect wakeword callback
+        self.wakeword.start(on_detected=self.trigger_wakeword)
+
+    # ------------------------------------------------------------------
+    # State & Event Broadcasting
+    # ------------------------------------------------------------------
+
+    @property
+    def state(self) -> VoiceState:
+        return self._state
+
+    def set_state(self, new_state: VoiceState, extra: dict[str, Any] | None = None) -> None:
+        with self._lock:
+            old_state = self._state
+            self._state = new_state
+            logger.info("Voice pipeline: %s -> %s", old_state.value, new_state.value)
+
+            payload = {"type": "state_change", "state": new_state.value}
+            if extra:
+                payload.update(extra)
+            self._broadcast(payload)
+
+    def subscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
+        """Register a listener for pipeline state changes and transcripts."""
+        if callback not in self._state_subscribers:
+            self._state_subscribers.append(callback)
+
+    def unsubscribe(self, callback: Callable[[dict[str, Any]], None]) -> None:
+        if callback in self._state_subscribers:
+            self._state_subscribers.remove(callback)
+
+    def _broadcast(self, event: dict[str, Any]) -> None:
+        for cb in list(self._state_subscribers):
+            try:
+                cb(event)
+            except Exception as exc:
+                logger.debug("Error in event subscriber: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Control Actions
+    # ------------------------------------------------------------------
+
+    def set_muted(self, muted: bool) -> None:
+        """Mute or unmute the microphone."""
+        self._is_muted = muted
+        logger.info("Voice pipeline mic muted: %s", muted)
+        self._broadcast({"type": "mute_change", "muted": muted})
+
+    @property
+    def is_muted(self) -> bool:
+        return self._is_muted
+
+    def interrupt(self) -> None:
+        """Interrupt any current playback or processing."""
+        logger.info("Voice pipeline interruption requested.")
+        self._interrupt_event.set()
+        self.player.stop()
+
+    def trigger_wakeword(self) -> None:
+        """Handle wake word or push-to-talk signal."""
+        if self._is_muted:
+            logger.debug("Wakeword ignored because mic is muted.")
+            return
+
+        # If speaking, interrupt immediately and transition to listening
+        if self._state == VoiceState.SPEAKING:
+            logger.info("Wakeword during SPEAKING: interrupting playback.")
+            self.interrupt()
+            # Start fresh turn
+            threading.Thread(target=self._run_voice_turn, daemon=True).start()
+            return
+
+        # If IDLE, start voice turn
+        if self._state == VoiceState.IDLE:
+            threading.Thread(target=self._run_voice_turn, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Core Turn Execution
+    # ------------------------------------------------------------------
+
+    def run_single_turn(self) -> str:
+        """Synchronously execute a single voice turn."""
+        return self._run_voice_turn()
+
+    def _run_voice_turn(self) -> str:
+        """Executes: listen -> STT -> think -> TTS -> speak."""
+        if self._is_muted:
+            return ""
+
+        self._interrupt_event.clear()
+        turn_start_time = time.perf_counter()
+        metrics: dict[str, float] = {}
+
+        try:
+            # 1. LISTENING
+            self.set_state(VoiceState.LISTENING)
+            audio_bytes = self.vad.record_speech_segment(
+                recorder=self.recorder,
+                silence_duration=0.8,
+                max_duration=20.0,
+                initial_timeout=5.0,
+            )
+
+            speech_end_time = time.perf_counter()
+            if not audio_bytes or self._interrupt_event.is_set():
+                logger.info("No speech captured or interrupted.")
+                self.set_state(VoiceState.IDLE)
+                return ""
+
+            # 2. TRANSCRIBING
+            self.set_state(VoiceState.TRANSCRIBING)
+            stt_start = time.perf_counter()
+            result = self.stt.transcribe(audio_bytes)
+            stt_duration = time.perf_counter() - stt_start
+            metrics["stt_ms"] = round(stt_duration * 1000.0, 1)
+
+            user_text = result.text.strip()
+            confidence = result.confidence
+            self._broadcast({
+                "type": "transcript",
+                "role": "user",
+                "text": user_text,
+                "confidence": confidence,
+            })
+
+            # Check for low confidence or empty speech
+            if not user_text or confidence < 0.25:
+                logger.info("Unrecognized speech (conf: %.2f) — fallback phrase.", confidence)
+                self._speak_phrase("Sorry boss, didn't catch that.")
+                self.set_state(VoiceState.IDLE)
+                return "Sorry boss, didn't catch that."
+
+            if self._interrupt_event.is_set():
+                self.set_state(VoiceState.IDLE)
+                return ""
+
+            # 3. THINKING & 4. SPEAKING (Streaming sentences)
+            self.set_state(VoiceState.THINKING)
+            llm_start = time.perf_counter()
+
+            if self.agent is None:
+                reply = f"Voice test mode received: {user_text}"
+                first_token_time = time.perf_counter()
+                metrics["llm_first_token_ms"] = round((first_token_time - llm_start) * 1000.0, 1)
+                self._speak_phrase(reply, metrics, speech_end_time)
+                self.set_state(VoiceState.IDLE)
+                return reply
+
+            # Build messages for agent
+            messages = [{"role": "user", "content": user_text}]
+
+            # Stream model reply sentence-by-sentence
+            full_reply = self._process_streaming_agent_turn(
+                messages=messages,
+                llm_start_time=llm_start,
+                speech_end_time=speech_end_time,
+                metrics=metrics,
+            )
+
+            metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+            logger.info("Voice turn metrics: %s", metrics)
+            self._broadcast({"type": "metrics", "metrics": metrics})
+
+            self.set_state(VoiceState.IDLE)
+            return full_reply
+
+        except Exception as exc:
+            logger.exception("Error in voice turn: %s", exc)
+            self.set_state(VoiceState.IDLE)
+            return f"(Voice turn error: {exc})"
+
+    def _process_streaming_agent_turn(
+        self,
+        messages: list[dict[str, Any]],
+        llm_start_time: float,
+        speech_end_time: float,
+        metrics: dict[str, float],
+    ) -> str:
+        """Stream LLM output, splitting into sentences and playing immediately."""
+        first_token_recorded = False
+        first_audio_played = False
+        accumulated_text = ""
+        full_response = ""
+
+        # Use agent's chat or fallback
+        # First check wake word fast path
+        user_input = messages[-1].get("content", "").strip()
+        if user_input.rstrip("!").lower() == "nalla":
+            reply = "Yes boss, sollunga!"
+            metrics["llm_first_token_ms"] = round((time.perf_counter() - llm_start_time) * 1000.0, 1)
+            self._speak_phrase(reply, metrics, speech_end_time)
+            return reply
+
+        try:
+            # We call agent.chat() to handle tools & persona properly
+            # In Phase 4, agent.chat() returns the final text
+            # For lowest latency, we immediately speak sentence by sentence
+            reply = self.agent.chat(messages)
+            full_response = reply
+
+            metrics["llm_total_ms"] = round((time.perf_counter() - llm_start_time) * 1000.0, 1)
+
+            # Split into natural sentences
+            sentences = [s.strip() for s in _SENTENCE_END_RE.split(reply) if s.strip()]
+            if not sentences:
+                sentences = [reply]
+
+            self.set_state(VoiceState.SPEAKING)
+            self._broadcast({"type": "transcript", "role": "assistant", "text": reply})
+
+            for s in sentences:
+                if self._interrupt_event.is_set():
+                    logger.info("Speech interrupted before sentence: %s", s[:30])
+                    break
+
+                clean_sentence = sanitize_text_for_speech(s)
+                if not clean_sentence:
+                    continue
+
+                audio_bytes = self.tts.synthesize(clean_sentence)
+
+                if not first_audio_played:
+                    first_audio_played = True
+                    metrics["tts_first_word_ms"] = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+
+                if self._interrupt_event.is_set():
+                    break
+
+                # Play audio (blocking this sentence until complete or interrupted)
+                self.player.play_audio_bytes(audio_bytes, block=True)
+
+        except Exception as exc:
+            logger.error("Failed during streaming agent speech: %s", exc)
+            full_response = f"Something went wrong: {exc}"
+
+        return full_response
+
+    def _speak_phrase(
+        self,
+        phrase: str,
+        metrics: dict[str, float] | None = None,
+        speech_end_time: float | None = None,
+    ) -> None:
+        """Synthesize and speak a single phrase."""
+        clean = sanitize_text_for_speech(phrase)
+        if not clean or self._interrupt_event.is_set():
+            return
+
+        self.set_state(VoiceState.SPEAKING)
+        self._broadcast({"type": "transcript", "role": "assistant", "text": phrase})
+
+        try:
+            audio_bytes = self.tts.synthesize(clean)
+            if metrics is not None and speech_end_time is not None:
+                metrics["tts_first_word_ms"] = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
+            self.player.play_audio_bytes(audio_bytes, block=True)
+        except Exception as exc:
+            logger.error("Failed to speak phrase '%s': %s", clean, exc)
+
+    def speak_reminder(self, reminder_text: str) -> None:
+        """Speak an alert for a scheduled due reminder."""
+        logger.info("Speaking due reminder aloud: %s", reminder_text)
+        announcement = f"Boss, reminder: {reminder_text}"
+        threading.Thread(target=self._speak_phrase, args=(announcement,), daemon=True).start()
+
+
+# Global pipeline singleton
+default_pipeline = VoicePipeline()
