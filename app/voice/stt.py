@@ -72,6 +72,22 @@ class SpeechToTextProvider(ABC):
         ...
 
 
+def _resolve_compute_type(device: str = "cpu", requested: str = "int8") -> str:
+    """Ported from OpenJarvis: inspect supported CTranslate2 compute types."""
+    try:
+        import ctranslate2
+        supported = set(ctranslate2.get_supported_compute_types(device))
+        if requested in supported:
+            return requested
+        if "int8" in supported:
+            return "int8"
+        if "float32" in supported:
+            return "float32"
+    except Exception as exc:
+        logger.debug("Could not inspect CTranslate2 compute types: %s", exc)
+    return requested
+
+
 class FasterWhisperSTT(SpeechToTextProvider):
     """Local offline speech-to-text engine using faster-whisper on CPU."""
 
@@ -86,24 +102,38 @@ class FasterWhisperSTT(SpeechToTextProvider):
         self.download_root = download_root or (BASE_DIR / "data" / "models" / "whisper")
         self.beam_size = WHISPER_BEAM_SIZE
         self._model = None  # Lazy loaded
+        self._warmed_up = False
 
     def warmup(self) -> None:
-        """Pre-load Whisper model into memory to eliminate first-turn latency."""
-        self._get_model()
+        """Pre-load Whisper model and warm up execution with a dummy audio clip."""
+        if self._warmed_up:
+            return
+        model = self._get_model()
+        try:
+            # 0.5s of silence at 16kHz float32
+            dummy_pcm = np.zeros(8000, dtype=np.float32)
+            # Run one warm-up inference pass
+            list(model.transcribe(dummy_pcm, beam_size=1, vad_filter=False)[0])
+            self._warmed_up = True
+            logger.info("FasterWhisperSTT warmed up successfully with dummy clip.")
+        except Exception as exc:
+            logger.debug("FasterWhisperSTT warmup notice: %s", exc)
 
     def _get_model(self):
         """Lazy loader for WhisperModel to prevent startup lag."""
         if self._model is None:
             from faster_whisper import WhisperModel
             self.download_root.mkdir(parents=True, exist_ok=True)
+            compute_type = _resolve_compute_type(device="cpu", requested="int8")
             logger.info(
-                "Loading faster-whisper '%s' model (int8 on CPU)...",
+                "Loading faster-whisper '%s' model (%s on CPU)...",
                 self.model_size,
+                compute_type,
             )
             self._model = WhisperModel(
                 self.model_size,
                 device="cpu",
-                compute_type="int8",
+                compute_type=compute_type,
                 download_root=str(self.download_root),
                 cpu_threads=4,
             )

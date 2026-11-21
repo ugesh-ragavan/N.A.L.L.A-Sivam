@@ -28,6 +28,16 @@ SAMPLES_PER_FRAME = int(DEFAULT_SAMPLE_RATE * (FRAME_DURATION_MS / 1000.0))
 BYTES_PER_FRAME = SAMPLES_PER_FRAME * 2  # 16-bit = 2 bytes per sample
 
 
+def _compute_pcm_rms(data: bytes) -> float:
+    """Compute RMS amplitude of 16-bit PCM bytes (adapted from OpenJarvis voice_io.py)."""
+    import struct
+    n = len(data) // 2
+    if n == 0:
+        return 0.0
+    shorts = struct.unpack(f"{n}h", data[: n * 2])
+    return float((sum(s * s for s in shorts) / n) ** 0.5)
+
+
 class VoiceActivityDetector:
     """Detects speech and silence intervals in a stream of PCM16 frames using hybrid VAD."""
 
@@ -60,17 +70,16 @@ class VoiceActivityDetector:
         thresh = self.energy_threshold if energy_threshold is None else energy_threshold
         # Energy gate: low RMS is ambient noise / silence, regardless of WebRTC classification
         if thresh > 0:
-            samples = np.frombuffer(pcm_frame, dtype=np.int16)
-            if len(samples) > 0:
-                rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
-                if rms < thresh:
-                    return False
+            rms = _compute_pcm_rms(pcm_frame)
+            if rms < thresh:
+                return False
 
         try:
             return self._vad.is_speech(pcm_frame, sample_rate)
         except Exception as exc:
             logger.debug("VAD frame evaluation error: %s", exc)
-            return False
+            # Fallback to pure energy thresholding if WebRTC raises error
+            return _compute_pcm_rms(pcm_frame) >= (thresh or 200.0)
 
     def record_speech_segment(
         self,

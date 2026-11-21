@@ -94,6 +94,7 @@ class VoicePipeline:
         self._state = VoiceState.IDLE
         self._is_running = False
         self._is_muted = False
+        self._speaking_muted = False
         self._interrupt_event = threading.Event()
         self._state_subscribers: list[Callable[[dict[str, Any]], None]] = []
         self._lock = threading.Lock()
@@ -121,6 +122,13 @@ class VoicePipeline:
         with self._lock:
             old_state = self._state
             self._state = new_state
+
+            # Mic is automatically muted while speaking to prevent self-hearing feedback loops
+            if new_state == VoiceState.SPEAKING:
+                self._speaking_muted = True
+            elif old_state == VoiceState.SPEAKING and new_state != VoiceState.SPEAKING:
+                self._speaking_muted = False
+
             logger.info("Voice pipeline: %s -> %s", old_state.value, new_state.value)
             payload = {"type": "state_change", "state": new_state.value}
             if extra:
@@ -164,12 +172,16 @@ class VoicePipeline:
 
     @property
     def is_muted(self) -> bool:
-        return self._is_muted
+        return self._is_muted or self._speaking_muted
 
     def interrupt(self) -> None:
         logger.info("Voice pipeline interruption requested.")
         self._interrupt_event.set()
         self.player.stop()
+
+    def push_to_talk(self) -> None:
+        """Trigger push-to-talk voice turn directly."""
+        self.trigger_wakeword()
 
     def trigger_wakeword(self) -> None:
         """Handle wake word or push-to-talk (with barge-in support)."""
@@ -372,90 +384,135 @@ class VoicePipeline:
         rec: Any,
         detected_lang: str | None,
     ) -> str:
-        """Stream LLM output, splitting into sentences and playing immediately."""
+        """Stream LLM output, splitting into sentences, prefetching TTS, and playing immediately."""
+        import queue
         first_token_recorded = False
         first_audio_played = False
         full_chunks: list[str] = []
         sentence_buffer = ""
+        first_chunk_done = False
 
-        try:
-            stream_gen: Generator[str, None, None] = (
-                self.agent.chat_stream(messages)  # type: ignore[union-attr]
-                if hasattr(self.agent, "chat_stream")
-                else iter([self.agent.chat(messages)])  # type: ignore[union-attr]
-            )
+        sentence_q: queue.Queue[str | None] = queue.Queue()
+        audio_q: queue.Queue[tuple[str, bytes] | None] = queue.Queue(maxsize=3)
 
-            for chunk in stream_gen:
-                if not chunk:
+        # Worker thread: prefetch TTS synthesis while audio plays
+        def _tts_prefetcher():
+            while not self._interrupt_event.is_set():
+                try:
+                    sent = sentence_q.get(timeout=0.1)
+                except queue.Empty:
                     continue
-
-                if not first_token_recorded:
-                    first_token_recorded = True
-                    rec.llm_first_ms = round((time.perf_counter() - llm_start) * 1000.0, 1)
-
-                sentence_buffer += chunk
-                full_chunks.append(chunk)
-
-                # Flush completed sentences
-                while True:
-                    match = re.search(r"([.!?]+(?:\s+|\n+)|[\n]+)", sentence_buffer)
-                    if not match:
-                        break
-                    end_pos = match.end()
-                    sentence = sentence_buffer[:end_pos].strip()
-                    sentence_buffer = sentence_buffer[end_pos:]
-
-                    if len(sentence) < _MIN_SENTENCE_LEN:
-                        continue
-
-                    clean = sanitize_text_for_speech(sentence)
-                    if not clean or self._interrupt_event.is_set():
-                        break
-
-                    self.set_state(VoiceState.SPEAKING)
-                    logger.debug("TTS sentence: '%s'", clean)
-                    # Sentence-by-sentence language switching (auto-detects Tamil characters per sentence)
-                    audio = self.tts.synthesize(clean)
-
-                    if not first_audio_played:
-                        first_audio_played = True
-                        rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
-
-                    if not self._interrupt_event.is_set():
-                        self.player.play_audio_bytes(audio, block=True)
-
-                if self._interrupt_event.is_set():
+                if sent is None:
+                    audio_q.put(None)
+                    sentence_q.task_done()
                     break
+                try:
+                    audio = self.tts.synthesize(sent)
+                except Exception as exc:
+                    logger.warning("Prefetch TTS failed for '%s': %s", sent[:40], exc)
+                    audio = b""
+                audio_q.put((sent, audio))
+                sentence_q.task_done()
 
-            # Flush remaining text
-            remaining = sentence_buffer.strip()
-            if remaining and not self._interrupt_event.is_set():
-                clean = sanitize_text_for_speech(remaining)
-                if clean:
-                    self.set_state(VoiceState.SPEAKING)
-                    audio = self.tts.synthesize(clean)
-                    if not first_audio_played:
-                        first_audio_played = True
-                        rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
-                    self.player.play_audio_bytes(audio, block=True)
+        prefetch_thread = threading.Thread(target=_tts_prefetcher, daemon=True)
+        prefetch_thread.start()
 
-            full_response = "".join(full_chunks).strip()
-            rec.llm_total_ms = round((time.perf_counter() - llm_start) * 1000.0, 1)
-
-            self._broadcast({"type": "transcript", "role": "assistant", "text": full_response})
-
-            # Persist assistant reply
+        # Producer thread: consumes LLM stream and pushes sentences to sentence_q
+        def _llm_producer():
+            nonlocal sentence_buffer, first_chunk_done, first_token_recorded
             try:
-                from app.memory.store import store
-                store.save_message("voice", "assistant", full_response)
-            except Exception:
-                pass
+                stream_gen: Generator[str, None, None] = (
+                    self.agent.chat_stream(messages)  # type: ignore[union-attr]
+                    if hasattr(self.agent, "chat_stream")
+                    else iter([self.agent.chat(messages)])  # type: ignore[union-attr]
+                )
+                for chunk in stream_gen:
+                    if not chunk or self._interrupt_event.is_set():
+                        continue
+                    if not first_token_recorded:
+                        first_token_recorded = True
+                        rec.llm_first_ms = round((time.perf_counter() - llm_start) * 1000.0, 1)
 
-            return full_response
+                    full_chunks.append(chunk)
+                    sentence_buffer += chunk
 
-        except Exception as exc:
-            logger.error("Streaming agent turn failed: %s", exc)
-            return f"Something went wrong: {exc}"
+                    # Check for completed sentences or early clause (adapted from javis-os voice-chunker.js)
+                    while True:
+                        if not first_chunk_done:
+                            words = sentence_buffer.split()
+                            if len(words) >= 6:
+                                m = re.search(r"([,;:]\s+|\s+(?:and|but|then|because|so|while)\s+)", sentence_buffer, re.IGNORECASE)
+                                if m and m.start() >= 15:
+                                    cut = m.end()
+                                    chunk_text = sentence_buffer[:cut].strip()
+                                    sentence_buffer = sentence_buffer[cut:]
+                                    clean = sanitize_text_for_speech(chunk_text)
+                                    if clean:
+                                        sentence_q.put(clean)
+                                    first_chunk_done = True
+                                    continue
+                        # Standard sentence split
+                        m = re.search(r"([.!?]+(?:\s+|\n+)|[\n]+)", sentence_buffer)
+                        if not m:
+                            break
+                        end_pos = m.end()
+                        chunk_text = sentence_buffer[:end_pos].strip()
+                        sentence_buffer = sentence_buffer[end_pos:]
+                        if len(chunk_text) >= _MIN_SENTENCE_LEN:
+                            clean = sanitize_text_for_speech(chunk_text)
+                            if clean:
+                                sentence_q.put(clean)
+                            first_chunk_done = True
+
+                # Flush remaining text
+                rem = sentence_buffer.strip()
+                if rem and not self._interrupt_event.is_set():
+                    clean = sanitize_text_for_speech(rem)
+                    if clean:
+                        sentence_q.put(clean)
+            except Exception as e:
+                logger.error("LLM streaming error: %s", e)
+            finally:
+                sentence_q.put(None)
+
+        producer_thread = threading.Thread(target=_llm_producer, daemon=True)
+        producer_thread.start()
+
+        # Consumer: plays audio items as they become available
+        while not self._interrupt_event.is_set():
+            try:
+                item = audio_q.get(timeout=0.1)
+            except queue.Empty:
+                if not producer_thread.is_alive() and sentence_q.empty() and audio_q.empty():
+                    break
+                continue
+            if item is None:
+                break
+            sent, audio = item
+            if audio and not self._interrupt_event.is_set():
+                self.set_state(VoiceState.SPEAKING)
+                if not first_audio_played:
+                    first_audio_played = True
+                    rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
+                self.player.play_audio_bytes(audio, block=True)
+            audio_q.task_done()
+
+        producer_thread.join(timeout=2.0)
+        prefetch_thread.join(timeout=2.0)
+
+        full_response = "".join(full_chunks).strip()
+        rec.llm_total_ms = round((time.perf_counter() - llm_start) * 1000.0, 1)
+
+        self._broadcast({"type": "transcript", "role": "assistant", "text": full_response})
+
+        # Persist assistant reply
+        try:
+            from app.memory.store import store
+            store.save_message("voice", "assistant", full_response)
+        except Exception:
+            pass
+
+        return full_response
 
     # ------------------------------------------------------------------
     # Speaking helpers
@@ -495,13 +552,20 @@ class VoicePipeline:
 
     def _emit_metrics(self, rec: Any) -> None:
         """Broadcast metrics to the dashboard and log the summary table."""
-        logger.info(
-            "Turn #%d metrics: STT=%.0fms Mem=%.0fms Prompt=%.0fms "
-            "LLM1st=%.0fms LLMtot=%.0fms Tools=%.0fms TTS1st=%.0fms Total=%.0fms FP=%s",
-            rec.turn_id, rec.stt_ms, rec.memory_ms, rec.prompt_build_ms,
-            rec.llm_first_ms, rec.llm_total_ms, rec.tool_calls_ms,
-            rec.tts_first_ms, rec.total_ms, rec.fast_path,
+        perf_line = (
+            f"[PERF] Turn #{rec.turn_id}: "
+            f"STT={rec.stt_ms:.0f}ms "
+            f"Mem={rec.memory_ms:.0f}ms "
+            f"Prompt={rec.prompt_build_ms:.0f}ms "
+            f"LLM1st={rec.llm_first_ms:.0f}ms "
+            f"LLMtot={rec.llm_total_ms:.0f}ms "
+            f"Tools={rec.tool_calls_ms:.0f}ms "
+            f"TTS1st={rec.tts_first_ms:.0f}ms "
+            f"Total={rec.total_ms:.0f}ms "
+            f"FP={'Y' if rec.fast_path else 'N'}"
         )
+        logger.info(perf_line)
+        print(perf_line)
         self._broadcast({
             "type": "metrics",
             "metrics": {
