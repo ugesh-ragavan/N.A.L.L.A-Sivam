@@ -71,7 +71,7 @@ class TextToSpeechProvider(ABC):
     """Abstract interface for speech synthesis engines."""
 
     @abstractmethod
-    def synthesize(self, text: str, voice: str | None = None) -> bytes:
+    def synthesize(self, text: str, voice: str | None = None, language: str | None = None) -> bytes:
         """Synthesize text into audio bytes (MP3 or WAV)."""
         ...
 
@@ -97,11 +97,11 @@ class EdgeTTS(TextToSpeechProvider):
     def is_online(self) -> bool:
         return True
 
-    def _select_voice(self, text: str, requested_voice: str | None = None) -> str:
+    def _select_voice(self, text: str, requested_voice: str | None = None, language: str | None = None) -> str:
         if requested_voice:
             return requested_voice
-        # If text contains Tamil characters, switch to Tamil voice
-        if _TAMIL_RE.search(text):
+        # If text contains Tamil characters or language is Tamil, switch to Tamil voice
+        if (language and language.lower() in ("ta", "tamil")) or _TAMIL_RE.search(text):
             return self.voice_ta
         return self.voice_en
 
@@ -115,13 +115,13 @@ class EdgeTTS(TextToSpeechProvider):
                 chunks.append(chunk["data"])
         return b"".join(chunks)
 
-    def synthesize(self, text: str, voice: str | None = None) -> bytes:
+    def synthesize(self, text: str, voice: str | None = None, language: str | None = None) -> bytes:
         """Synchronously synthesize text to MP3 audio bytes."""
         text = sanitize_text_for_speech(text)
         if not text:
             return b""
 
-        selected_voice = self._select_voice(text, voice)
+        selected_voice = self._select_voice(text, requested_voice=voice, language=language)
         logger.debug("EdgeTTS synthesizing with voice '%s': %s", selected_voice, text[:60])
 
         try:
@@ -231,7 +231,7 @@ class TTSManager(TextToSpeechProvider):
     def is_online(self) -> bool:
         return self.edge.is_online
 
-    def synthesize(self, text: str, voice: str | None = None) -> bytes:
+    def synthesize(self, text: str, voice: str | None = None, language: str | None = None) -> bytes:
         """Synthesize text, automatically falling back to offline Piper if EdgeTTS fails."""
         cleaned = sanitize_text_for_speech(text)
         if not cleaned:
@@ -242,7 +242,7 @@ class TTSManager(TextToSpeechProvider):
 
         # Default: attempt online EdgeTTS first
         try:
-            return self.edge.synthesize(cleaned, voice)
+            return self.edge.synthesize(cleaned, voice=voice, language=language)
         except Exception as exc:
             logger.warning("Online EdgeTTS failed (%s) — falling back to offline Piper TTS.", exc)
             return self.piper.synthesize(cleaned, voice)

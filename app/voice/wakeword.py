@@ -108,18 +108,28 @@ class OpenWakeWordDetector(WakeWordDetector):
             import openwakeword
             from openwakeword.model import Model
 
-            # Map user friendly names to built-in models
-            model_name = self.keyword.lower().replace(" ", "_")
-            if not model_name.endswith(".tflite") and not model_name.endswith(".onnx"):
+            # Check if custom model file or built-in model
+            kw = self.keyword.strip()
+            if kw.endswith(".onnx") or kw.endswith(".tflite") or "/" in kw or "\\" in kw:
+                model_path = kw
+                framework = "tflite" if kw.endswith(".tflite") else "onnx"
+            else:
+                model_name = kw.lower().replace(" ", "_")
                 if "jarvis" in model_name:
-                    model_name = "hey_jarvis_v0.1.tflite"
+                    model_path = "hey_jarvis_v0.1.onnx"
                 elif "alexa" in model_name:
-                    model_name = "alexa_v0.1.tflite"
+                    model_path = "alexa_v0.1.onnx"
                 else:
-                    model_name = "hey_jarvis_v0.1.tflite"
+                    model_path = "hey_jarvis_v0.1.onnx"
+                framework = "onnx"
 
-            logger.info("Initializing openWakeWord model: %s (sensitivity: %.2f)", model_name, self.sensitivity)
-            self._model = Model(wakeword_models=[model_name], inference_framework="tflite")
+            logger.info(
+                "Initializing openWakeWord model: %s (framework: %s, sensitivity: %.2f)",
+                model_path,
+                framework,
+                self.sensitivity,
+            )
+            self._model = Model(wakeword_models=[model_path], inference_framework=framework)
         return self._model
 
     def _listen_loop(self) -> None:

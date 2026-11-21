@@ -280,6 +280,58 @@ class TestPipeline:
         assert "tts_first_audio_ms" in m
         assert "total_turn_ms" in m
 
+    def test_barge_in_during_speaking(self):
+        """Barge-in: a trigger during SPEAKING immediately stops player and transitions to listening."""
+        dummy_player = DummyPlayer()
+        pipeline = VoicePipeline(
+            recorder=AudioRecorder(),
+            player=dummy_player,
+            stt=DummySTT(text="stop", conf=0.9),
+            wakeword=PushToTalk(),
+        )
+        pipeline.set_state(VoiceState.SPEAKING)
+        assert dummy_player.stopped is False
+
+        # Barge-in trigger
+        pipeline.trigger_wakeword()
+        assert dummy_player.stopped is True
+
+    def test_follow_up_window_conversation(self):
+        """Follow-up: speech within the follow-up window executes without wake word."""
+        dummy_player = DummyPlayer()
+        # Mock VAD to return audio on first call and follow-up call, then silence
+        call_count = [0]
+        def mock_record(**kwargs):
+            call_count[0] += 1
+            if call_count[0] <= 2:
+                return b"\x00" * 3200
+            return b""
+
+        pipeline = VoicePipeline(
+            recorder=AudioRecorder(),
+            player=dummy_player,
+            stt=DummySTT(text="Nalla!"),
+            wakeword=PushToTalk(),
+            follow_up_enabled=True,
+            follow_up_timeout=0.2,
+        )
+        pipeline.vad.record_speech_segment = mock_record
+
+        reply = pipeline._run_voice_turn(allow_follow_up=True)
+        assert reply == "Yes boss, sollunga!"
+        assert call_count[0] >= 2  # Ran initial turn and follow-up turn!
+        assert pipeline.state == VoiceState.IDLE
+
+    def test_tamil_voice_selection_bilingual(self):
+        """Auto-detect selects Tamil voice for Tamil script or language='ta'."""
+        edge = EdgeTTS(voice_en="en-IN-NeerjaNeural", voice_ta="ta-IN-PallaviNeural")
+        # Tamil Unicode
+        assert edge._select_voice("வணக்கம் பாஸ்") == "ta-IN-PallaviNeural"
+        # Romanized Tamil with language tag
+        assert edge._select_voice("Vanakkam boss", language="ta") == "ta-IN-PallaviNeural"
+        # English
+        assert edge._select_voice("Good morning boss", language="en") == "en-IN-NeerjaNeural"
+
 
 # ---------------------------------------------------------------------------
 # 7. Voice Web Dashboard API Tests

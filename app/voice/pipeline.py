@@ -24,6 +24,7 @@ import time
 from enum import Enum
 from typing import Any, Callable, Generator
 
+from app.config import FOLLOW_UP_ENABLED, FOLLOW_UP_TIMEOUT
 from app.brain.agent import Agent
 from app.voice.audio_io import AudioPlayer, AudioRecorder, default_player, default_recorder
 from app.voice.stt import FasterWhisperSTT, SpeechToTextProvider, stt_engine
@@ -57,6 +58,8 @@ class VoicePipeline:
         stt: SpeechToTextProvider | None = None,
         tts: TTSManager | None = None,
         wakeword: WakeWordDetector | None = None,
+        follow_up_enabled: bool | None = None,
+        follow_up_timeout: float | None = None,
     ) -> None:
         self.agent = agent
         self.recorder = recorder or default_recorder
@@ -65,6 +68,8 @@ class VoicePipeline:
         self.stt = stt or stt_engine
         self.tts = tts or tts_engine
         self.wakeword = wakeword or default_wakeword
+        self.follow_up_enabled = follow_up_enabled if follow_up_enabled is not None else FOLLOW_UP_ENABLED
+        self.follow_up_timeout = follow_up_timeout if follow_up_timeout is not None else FOLLOW_UP_TIMEOUT
 
         self._state = VoiceState.IDLE
         self._is_running = False
@@ -132,141 +137,176 @@ class VoicePipeline:
         self.player.stop()
 
     def trigger_wakeword(self) -> None:
-        """Handle wake word or push-to-talk signal."""
+        """Handle wake word or push-to-talk signal (with barge-in support)."""
         if self._is_muted:
             logger.debug("Wakeword ignored because mic is muted.")
             return
 
-        # If speaking, interrupt immediately and transition to listening
-        if self._state == VoiceState.SPEAKING:
-            logger.info("Wakeword during SPEAKING: interrupting playback.")
+        # Barge-in: if SPEAKING or THINKING, interrupt immediately and start fresh turn
+        if self._state in (VoiceState.SPEAKING, VoiceState.THINKING):
+            logger.info("Barge-in triggered during %s: stopping playback and listening.", self._state.value)
             self.interrupt()
-            # Start fresh turn
-            threading.Thread(target=self._run_voice_turn, daemon=True).start()
+            time.sleep(0.05)
+            threading.Thread(target=self._run_voice_turn, kwargs={"allow_follow_up": self.follow_up_enabled}, daemon=True).start()
             return
 
-        # If IDLE, start voice turn
-        if self._state == VoiceState.IDLE:
-            threading.Thread(target=self._run_voice_turn, daemon=True).start()
+        # If IDLE or already in follow-up listening, start fresh turn
+        if self._state in (VoiceState.IDLE, VoiceState.LISTENING):
+            if self._state == VoiceState.LISTENING:
+                self.interrupt()
+                time.sleep(0.05)
+            threading.Thread(target=self._run_voice_turn, kwargs={"allow_follow_up": self.follow_up_enabled}, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Core Turn Execution
     # ------------------------------------------------------------------
 
-    def run_single_turn(self) -> str:
+    def run_single_turn(self, allow_follow_up: bool = False) -> str:
         """Synchronously execute a single voice turn."""
-        return self._run_voice_turn()
+        return self._run_voice_turn(allow_follow_up=allow_follow_up)
 
-    def _run_voice_turn(self) -> str:
-        """Executes: listen -> STT -> think -> TTS -> speak."""
+    def _run_voice_turn(self, allow_follow_up: bool = False) -> str:
+        """Executes: listen -> STT -> think -> TTS -> speak (with optional follow-up window)."""
         if self._is_muted:
             return ""
 
         self._interrupt_event.clear()
-        turn_start_time = time.perf_counter()
-        metrics: dict[str, float] = {}
+        first_turn = True
+        last_reply = ""
 
         try:
-            # 1. LISTENING
-            self.set_state(VoiceState.LISTENING)
-            audio_bytes = self.vad.record_speech_segment(
-                recorder=self.recorder,
-                silence_duration=0.8,
-                max_duration=20.0,
-                initial_timeout=5.0,
-            )
+            while not self._interrupt_event.is_set() and not self._is_muted:
+                turn_start_time = time.perf_counter()
+                metrics: dict[str, float] = {}
 
-            speech_end_time = time.perf_counter()
-            if not audio_bytes or self._interrupt_event.is_set():
-                logger.info("No speech captured or interrupted.")
-                self.set_state(VoiceState.IDLE)
-                return ""
+                # 1. LISTENING
+                if first_turn:
+                    self.set_state(VoiceState.LISTENING)
+                    audio_bytes = self.vad.record_speech_segment(
+                        recorder=self.recorder,
+                        silence_duration=0.8,
+                        max_duration=20.0,
+                        initial_timeout=8.0,
+                    )
+                else:
+                    logger.info("Entering %.1fs follow-up window (listening without wake word)...", self.follow_up_timeout)
+                    self.set_state(VoiceState.LISTENING, extra={"follow_up": True, "timeout": self.follow_up_timeout})
+                    audio_bytes = self.vad.record_speech_segment(
+                        recorder=self.recorder,
+                        silence_duration=0.8,
+                        max_duration=20.0,
+                        initial_timeout=self.follow_up_timeout,
+                    )
 
-            # 2. TRANSCRIBING
-            self.set_state(VoiceState.TRANSCRIBING)
-            stt_start = time.perf_counter()
-            result = self.stt.transcribe(audio_bytes)
-            stt_duration = time.perf_counter() - stt_start
-            metrics["stt_ms"] = round(stt_duration * 1000.0, 1)
+                speech_end_time = time.perf_counter()
+                if not audio_bytes or self._interrupt_event.is_set():
+                    if first_turn:
+                        logger.info("No speech captured or interrupted.")
+                    else:
+                        logger.info("Follow-up window expired without speech.")
+                    self.set_state(VoiceState.IDLE)
+                    return last_reply
 
-            user_text = result.text.strip()
-            confidence = result.confidence
-            self._broadcast({
-                "type": "transcript",
-                "role": "user",
-                "text": user_text,
-                "confidence": confidence,
-            })
+                first_turn = False
 
-            # Greeting fast-path: "Nalla!" or "Nalla"
-            clean_cmd = user_text.rstrip("!").lower()
-            if clean_cmd == "nalla":
-                reply = "Yes boss, sollunga!"
-                metrics["memory_search_ms"] = 0.0
-                metrics["llm_first_token_ms"] = 0.0
-                self._speak_phrase(reply, metrics, speech_end_time)
+                # 2. TRANSCRIBING
+                self.set_state(VoiceState.TRANSCRIBING)
+                stt_start = time.perf_counter()
+                result = self.stt.transcribe(audio_bytes)
+                stt_duration = time.perf_counter() - stt_start
+                metrics["stt_ms"] = round(stt_duration * 1000.0, 1)
+
+                user_text = result.text.strip()
+                confidence = result.confidence
+                detected_lang = result.language
+                self._broadcast({
+                    "type": "transcript",
+                    "role": "user",
+                    "text": user_text,
+                    "confidence": confidence,
+                    "language": detected_lang,
+                })
+
+                # Greeting fast-path: "Nalla!" or "Nalla"
+                clean_cmd = user_text.rstrip("!").lower()
+                if clean_cmd == "nalla":
+                    reply = "Yes boss, sollunga!"
+                    metrics["memory_search_ms"] = 0.0
+                    metrics["llm_first_token_ms"] = 0.0
+                    self._speak_phrase(reply, metrics, speech_end_time, language=detected_lang)
+                    metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+                    logger.info("Voice turn metrics (greeting): %s", metrics)
+                    self._broadcast({"type": "metrics", "metrics": metrics})
+                    last_reply = reply
+                    if not allow_follow_up:
+                        break
+                    continue
+
+                # Check for low confidence or empty speech
+                if not user_text or (confidence < 0.15 and len(user_text) < 4):
+                    logger.info("Unrecognized speech (text='%s', conf: %.2f) — fallback phrase.", user_text, confidence)
+                    metrics["memory_search_ms"] = 0.0
+                    metrics["llm_first_token_ms"] = 0.0
+                    self._speak_phrase("Sorry boss, didn't catch that.", metrics, speech_end_time, language=detected_lang)
+                    metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+                    self._broadcast({"type": "metrics", "metrics": metrics})
+                    last_reply = "Sorry boss, didn't catch that."
+                    if not allow_follow_up:
+                        break
+                    continue
+
+                if self._interrupt_event.is_set():
+                    self.set_state(VoiceState.IDLE)
+                    return ""
+
+                # 3. THINKING & 4. SPEAKING (Streaming sentences)
+                self.set_state(VoiceState.THINKING)
+                llm_start = time.perf_counter()
+
+                # Attempt lazy agent attachment if none set
+                if self.agent is None:
+                    try:
+                        from app.main import _build_agent
+                        self.agent = _build_agent()
+                        logger.info("Voice pipeline lazily attached full Gemini agent.")
+                    except Exception as exc:
+                        logger.debug("Could not attach agent automatically: %s", exc)
+
+                if self.agent is None:
+                    reply = f"Voice test mode received: {user_text}"
+                    first_token_time = time.perf_counter()
+                    metrics["memory_search_ms"] = 0.0
+                    metrics["llm_first_token_ms"] = round((first_token_time - llm_start) * 1000.0, 1)
+                    self._speak_phrase(reply, metrics, speech_end_time, language=detected_lang)
+                    metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
+                    self._broadcast({"type": "metrics", "metrics": metrics})
+                    last_reply = reply
+                    if not allow_follow_up:
+                        break
+                    continue
+
+                # Build messages for agent
+                messages = [{"role": "user", "content": user_text}]
+
+                # Stream model reply sentence-by-sentence
+                full_reply = self._process_streaming_agent_turn(
+                    messages=messages,
+                    llm_start_time=llm_start,
+                    speech_end_time=speech_end_time,
+                    metrics=metrics,
+                    detected_lang=detected_lang,
+                )
+
                 metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
-                logger.info("Voice turn metrics (greeting): %s", metrics)
+                logger.info("Voice turn metrics: %s", metrics)
                 self._broadcast({"type": "metrics", "metrics": metrics})
-                self.set_state(VoiceState.IDLE)
-                return reply
+                last_reply = full_reply
 
-            # Check for low confidence or empty speech
-            if not user_text or (confidence < 0.15 and len(user_text) < 4):
-                logger.info("Unrecognized speech (text='%s', conf: %.2f) — fallback phrase.", user_text, confidence)
-                metrics["memory_search_ms"] = 0.0
-                metrics["llm_first_token_ms"] = 0.0
-                self._speak_phrase("Sorry boss, didn't catch that.", metrics, speech_end_time)
-                metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
-                self._broadcast({"type": "metrics", "metrics": metrics})
-                self.set_state(VoiceState.IDLE)
-                return "Sorry boss, didn't catch that."
-
-            if self._interrupt_event.is_set():
-                self.set_state(VoiceState.IDLE)
-                return ""
-
-            # 3. THINKING & 4. SPEAKING (Streaming sentences)
-            self.set_state(VoiceState.THINKING)
-            llm_start = time.perf_counter()
-
-            # Attempt lazy agent attachment if none set
-            if self.agent is None:
-                try:
-                    from app.main import _build_agent
-                    self.agent = _build_agent()
-                    logger.info("Voice pipeline lazily attached full Gemini agent.")
-                except Exception as exc:
-                    logger.debug("Could not attach agent automatically: %s", exc)
-
-            if self.agent is None:
-                reply = f"Voice test mode received: {user_text}"
-                first_token_time = time.perf_counter()
-                metrics["memory_search_ms"] = 0.0
-                metrics["llm_first_token_ms"] = round((first_token_time - llm_start) * 1000.0, 1)
-                self._speak_phrase(reply, metrics, speech_end_time)
-                metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
-                self._broadcast({"type": "metrics", "metrics": metrics})
-                self.set_state(VoiceState.IDLE)
-                return reply
-
-            # Build messages for agent
-            messages = [{"role": "user", "content": user_text}]
-
-            # Stream model reply sentence-by-sentence
-            full_reply = self._process_streaming_agent_turn(
-                messages=messages,
-                llm_start_time=llm_start,
-                speech_end_time=speech_end_time,
-                metrics=metrics,
-            )
-
-            metrics["total_turn_ms"] = round((time.perf_counter() - turn_start_time) * 1000.0, 1)
-            logger.info("Voice turn metrics: %s", metrics)
-            self._broadcast({"type": "metrics", "metrics": metrics})
+                if not allow_follow_up:
+                    break
 
             self.set_state(VoiceState.IDLE)
-            return full_reply
+            return last_reply
 
         except Exception as exc:
             logger.exception("Error in voice turn: %s", exc)
@@ -279,6 +319,7 @@ class VoicePipeline:
         llm_start_time: float,
         speech_end_time: float,
         metrics: dict[str, float],
+        detected_lang: str | None = None,
     ) -> str:
         """Stream LLM output, splitting into sentences and playing immediately."""
         first_token_recorded = False
@@ -292,7 +333,7 @@ class VoicePipeline:
         if user_input.rstrip("!").lower() == "nalla":
             reply = "Yes boss, sollunga!"
             metrics["llm_first_token_ms"] = round((time.perf_counter() - llm_start_time) * 1000.0, 1)
-            self._speak_phrase(reply, metrics, speech_end_time)
+            self._speak_phrase(reply, metrics, speech_end_time, language=detected_lang)
             return reply
 
         # Persist user speech in SQLite memory
@@ -343,7 +384,7 @@ class VoicePipeline:
 
                     self.set_state(VoiceState.SPEAKING)
                     logger.info("Synthesizing completed sentence: '%s'", clean_sentence)
-                    audio_bytes = self.tts.synthesize(clean_sentence)
+                    audio_bytes = self.tts.synthesize(clean_sentence, language=detected_lang)
 
                     if not first_audio_played:
                         first_audio_played = True
@@ -368,7 +409,7 @@ class VoicePipeline:
                 if clean_sentence:
                     self.set_state(VoiceState.SPEAKING)
                     logger.info("Synthesizing final sentence: '%s'", clean_sentence)
-                    audio_bytes = self.tts.synthesize(clean_sentence)
+                    audio_bytes = self.tts.synthesize(clean_sentence, language=detected_lang)
                     if not first_audio_played:
                         first_audio_played = True
                         tts_time = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
@@ -398,6 +439,7 @@ class VoicePipeline:
         phrase: str,
         metrics: dict[str, float] | None = None,
         speech_end_time: float | None = None,
+        language: str | None = None,
     ) -> None:
         """Synthesize and speak a single phrase."""
         clean = sanitize_text_for_speech(phrase)
@@ -409,7 +451,7 @@ class VoicePipeline:
 
         try:
             logger.info("Synthesizing phrase: '%s'", clean)
-            audio_bytes = self.tts.synthesize(clean)
+            audio_bytes = self.tts.synthesize(clean, language=language)
             if metrics is not None and speech_end_time is not None:
                 tts_time = round((time.perf_counter() - speech_end_time) * 1000.0, 1)
                 metrics["tts_first_audio_ms"] = tts_time

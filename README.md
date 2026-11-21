@@ -162,6 +162,54 @@ MQTT_PORT=1883
 
 ---
 
+## 🎙️ Wake Word & Custom "Nalla" Model Training
+
+Nalla Sivam supports both **Push-To-Talk** (hotkey / dashboard button) and continuous **Wake Word Detection** using `openWakeWord` on CPU.
+
+### Default Keyword
+By default, Nalla comes pre-configured with the built-in model `"hey jarvis"` (or `"alexa"`).
+To use it in `.env`:
+```ini
+WAKE_WORD_ENGINE=openwakeword
+WAKE_WORD_KEYWORD=hey jarvis
+WAKE_WORD_SENSITIVITY=0.5
+FOLLOW_UP_TIMEOUT=30.0
+FOLLOW_UP_ENABLED=true
+```
+
+### Training a Custom "Nalla" (நல்ல) Wake Word Model
+To train your own custom wake word model that detects *"Nalla"*:
+
+1. **Open the Training Colab:**
+   Visit the official openWakeWord automated model training notebook on Google Colab:
+   [openWakeWord Training Notebook](https://colab.research.google.com/github/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb)
+2. **Configure the Target Phrase:**
+   Set the target wake word to `Nalla` (you can also provide phonetic spellings or variations like `nalla`, `nallaa`).
+3. **Generate Synthetic Training Clips:**
+   The notebook utilizes Text-to-Speech engines (Piper / Coqui) to synthesize thousands of training clips in diverse accents and tones.
+4. **Train and Export:**
+   Train the lightweight binary classifier and export the model as an ONNX model: `nalla.onnx` (or `nalla.tflite`).
+5. **Install into Nalla:**
+   Place the exported file into your local models directory:
+   ```bash
+   mkdir -p data/models/wakeword
+   cp nalla.onnx data/models/wakeword/nalla.onnx
+   ```
+6. **Activate via Configuration:**
+   In your `.env` (no code modifications needed):
+   ```ini
+   WAKE_WORD_ENGINE=openwakeword
+   WAKE_WORD_KEYWORD=data/models/wakeword/nalla.onnx
+   WAKE_WORD_SENSITIVITY=0.5
+   ```
+
+### ⚡ Voice Features (Phase 4B)
+- **Barge-in:** Saying the wake word or pressing the hotkey/button while Nalla is speaking (`SPEAKING` state) immediately halts playback and begins listening to your new instruction.
+- **30-Second Follow-up Window:** When Nalla completes a response, it remains alert for 30 seconds. You can ask follow-up questions directly without repeating the wake word. If no speech is heard for 30s, it transitions back to `IDLE`.
+- **Tamil-English Bilingual Support:** Auto-detects Tamil (`ta`) or English (`en`) queries, automatically routing to `ta-IN-PallaviNeural` for Tamil text and `en-IN-NeerjaNeural` for English text.
+
+---
+
 ## 🔒 Security & Privacy Rules
 
 1. **Localhost Bound:** Web interfaces bind strictly to `127.0.0.1` — no remote exposure.
