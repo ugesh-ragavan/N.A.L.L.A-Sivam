@@ -1,0 +1,88 @@
+# ==============================================================================
+# NALLA SIVAM — Terminal Command Reference
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. HOW TO STOP A RUNNING PROGRAM
+# ------------------------------------------------------------------------------
+# Method A (Standard):
+#   Click inside the terminal window running the app and press:
+#   Ctrl + C   (or Ctrl + Break)
+
+# Method B (PowerShell - Kill process holding Port 8000):
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue).OwningProcess -Force
+
+# Method C (PowerShell - Kill all python processes if hung):
+Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
+
+# Method D (CMD / Command Prompt):
+#   for /f "tokens=5" %a in ('netstat -ano ^| findstr :8000') do taskkill /PID %a /F
+
+
+# ------------------------------------------------------------------------------
+# 2. RUNNING THE APPLICATION
+# ------------------------------------------------------------------------------
+# Launch Web Dashboard (Main UI at http://127.0.0.1:8000):
+.\.venv\Scripts\python -m app.main
+
+# Or explicitly:
+.\.venv\Scripts\python -m app dashboard
+
+# Alternative direct server module runner:
+.\.venv\Scripts\python -m app.web.server
+
+# Interactive Terminal Chat mode:
+.\.venv\Scripts\python -m app chat
+
+# Hands-Free / Push-To-Talk Voice mode in Terminal:
+.\.venv\Scripts\python -m app voice
+
+# Startup Banner and System Config Check:
+.\.venv\Scripts\python -m app
+
+.\.venv\Scripts\python -m app.main
+
+# ------------------------------------------------------------------------------
+# 3. RUNNING TESTS (Pytest)
+# ------------------------------------------------------------------------------
+# Run all tests:
+.\.venv\Scripts\python -m pytest tests/
+
+# Run tests with short summary:
+.\.venv\Scripts\python -m pytest tests/ -q --tb=short
+
+# Run specific test suite (e.g., Voice & Wakeword tests):
+.\.venv\Scripts\python -m pytest tests/test_voice_advanced.py -v
+
+# Run with stdout printing enabled (-s):
+.\.venv\Scripts\python -m pytest tests/test_voice_advanced.py -s -v
+
+
+# ------------------------------------------------------------------------------
+# 4. BENCHMARKS & AUDIT SCRIPTS
+# ------------------------------------------------------------------------------
+# 20-Turn Speed Audit (STT, LLM, TTS, Fast-Path waterfall):
+.\.venv\Scripts\python scripts/speed_audit_20_turns.py
+
+# Benchmark Tamil & English Whisper accuracy (base vs small):
+.\.venv\Scripts\python scripts/test_tamil_english.py
+
+# Verify Gemini TTS API status & voices:
+.\.venv\Scripts\python scripts/verify_gemini_tts.py
+
+# Diagnose Gemini speech engine latency & quota:
+.\.venv\Scripts\python scripts/diagnose_gemini_speech.py
+
+# 10-Turn benchmark:
+.\.venv\Scripts\python scripts/benchmark_10_turns.py
+
+
+# ------------------------------------------------------------------------------
+# 5. ENVIRONMENT & PORTS CHECK
+# ------------------------------------------------------------------------------
+# Check if Port 8000 is occupied:
+netstat -ano | findstr 8000
+
+# Open Dashboard in default browser:
+Start-Process "http://127.0.0.1:8000"
+

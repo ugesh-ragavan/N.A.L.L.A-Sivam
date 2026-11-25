@@ -132,6 +132,11 @@ class ToolRegistry:
         """Return the entry for *name*, or None if not registered."""
         return self._tools.get(name)
 
+    def get_risk(self, name: str) -> RiskLevel:
+        """Return the risk level for a registered tool, or GREEN if unknown."""
+        entry = self.get(name)
+        return entry.risk if entry else RiskLevel.GREEN
+
     def run(self, name: str, args: dict[str, Any]) -> ToolResult:
         """Execute a registered tool by name.
 
@@ -432,4 +437,617 @@ def _list_reminders() -> ToolResult:
         message=f"Pending reminders:\n{formatted}",
         data={"reminders": reminders},
     )
+
+
+# ---------------------------------------------------------------------------
+# Task Management Tools (GREEN risk)
+# ---------------------------------------------------------------------------
+
+@registry.tool(
+    name="add_task",
+    description="Add a new task to your todo list. priority: 1 (high), 2 (medium), 3 (low).",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "The title or action of the task."},
+            "priority": {"type": "integer", "description": "1 (high), 2 (medium/default), 3 (low).", "default": 2},
+            "due_at": {"type": "string", "description": "Optional ISO timestamp or date."},
+            "project": {"type": "string", "description": "Optional project tag/name."},
+        },
+        "required": ["title"],
+    },
+)
+def _add_task(title: str, priority: int = 2, due_at: str | None = None, project: str | None = None) -> ToolResult:
+    from app.memory.store import store as memory_store
+    try:
+        tid = memory_store.add_task(title=title, priority=priority, due_at=due_at, project=project)
+        p_str = {1: "high", 2: "medium", 3: "low"}.get(priority, "medium")
+        return ToolResult(
+            ok=True,
+            message=f"Added task #{tid}: '{title}' ({p_str} priority).",
+            data={"id": tid, "title": title, "priority": priority, "due_at": due_at, "project": project},
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to add task: {exc}")
+
+
+@registry.tool(
+    name="list_tasks",
+    description="List tasks filtered by status ('open' or 'done') and optional project.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "description": "'open' (default) or 'done'.", "default": "open"},
+            "project": {"type": "string", "description": "Optional project filter."},
+        },
+    },
+)
+def _list_tasks(status: str = "open", project: str | None = None) -> ToolResult:
+    from app.memory.store import store as memory_store
+    tasks = memory_store.list_tasks(status=status, project=project)
+    if not tasks:
+        msg = f"No {status} tasks found."
+        return ToolResult(ok=True, message=msg, data={"tasks": []})
+    formatted = "\n".join(
+        f"#{t['id']} [{t['status']}] (P{t['priority']}) {t['title']}"
+        + (f" [due {t['due_at']}]" if t.get("due_at") else "")
+        + (f" (proj: {t['project']})" if t.get("project") else "")
+        for t in tasks
+    )
+    return ToolResult(ok=True, message=f"Tasks ({status}):\n{formatted}", data={"tasks": tasks})
+
+
+@registry.tool(
+    name="next_task",
+    description="Get the single highest priority open task (P1 before P2 before P3, then earliest due date, then oldest).",
+    risk=RiskLevel.GREEN,
+    parameters={"type": "object", "properties": {}},
+)
+def _next_task() -> ToolResult:
+    from app.memory.store import store as memory_store
+    task = memory_store.next_task()
+    if not task:
+        return ToolResult(
+            ok=True,
+            message="No open tasks in the list, boss. You're completely caught up!",
+            data={"task": None},
+        )
+    p_str = {1: "high", 2: "medium", 3: "low"}.get(task["priority"], "medium")
+    due_info = f", due {task['due_at']}" if task.get("due_at") else ""
+    return ToolResult(
+        ok=True,
+        message=f"Next up is #{task['id']}: '{task['title']}' ({p_str} priority{due_info}).",
+        data={"task": task},
+    )
+
+
+@registry.tool(
+    name="complete_task",
+    description="Mark an open task as completed by its ID.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "task_id": {"type": "integer", "description": "The task ID to mark done."},
+        },
+        "required": ["task_id"],
+    },
+)
+def _complete_task(task_id: int) -> ToolResult:
+    from app.memory.store import store as memory_store
+    ok = memory_store.complete_task(task_id)
+    if ok:
+        return ToolResult(ok=True, message=f"Task #{task_id} completed! Great job, boss.", data={"task_id": task_id})
+    return ToolResult(ok=False, message=f"Task #{task_id} not found or already completed.")
+
+
+@registry.tool(
+    name="reprioritise_task",
+    description="Change priority of a task (1=high, 2=medium, 3=low).",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "task_id": {"type": "integer", "description": "The task ID."},
+            "new_priority": {"type": "integer", "description": "1 (high), 2 (medium), or 3 (low)."},
+        },
+        "required": ["task_id", "new_priority"],
+    },
+)
+def _reprioritise_task(task_id: int, new_priority: int) -> ToolResult:
+    from app.memory.store import store as memory_store
+    try:
+        ok = memory_store.reprioritise_task(task_id, new_priority)
+        if ok:
+            p_str = {1: "high", 2: "medium", 3: "low"}.get(new_priority, str(new_priority))
+            return ToolResult(
+                ok=True,
+                message=f"Task #{task_id} reprioritised to {p_str} (P{new_priority}).",
+                data={"task_id": task_id, "priority": new_priority},
+            )
+        return ToolResult(ok=False, message=f"Task #{task_id} not found.")
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to reprioritise task: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Browser Control & Web Automation (Adapted from Jarvis Architecture)
+# ---------------------------------------------------------------------------
+
+@registry.tool(
+    name="browser_open_url",
+    description="Open a public webpage directly in the browser (e.g. YouTube, Wikipedia, documentation). Prefer this over search when a specific site or URL is named.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "Complete HTTP or HTTPS URL to open."},
+        },
+        "required": ["url"],
+    },
+)
+def _browser_open_url(url: str) -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.open_url(url)
+        return ToolResult(
+            ok=True,
+            message=f"Opened '{res['url']}'. Page title: '{res['title']}'.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to open '{url}': {exc}")
+
+
+@registry.tool(
+    name="browser_search",
+    description="Perform a fallback DuckDuckGo web search in the browser when no specific website destination is specified.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Search query text."},
+        },
+        "required": ["query"],
+    },
+)
+def _browser_search(query: str) -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.search_the_web(query)
+        return ToolResult(
+            ok=True,
+            message=f"Search executed for '{query}'. Current page: '{res['title']}'.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Search failed for '{query}': {exc}")
+
+
+@registry.tool(
+    name="browser_read_page",
+    description="Read visible readable text from the currently open webpage in the browser.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "max_chars": {"type": "integer", "description": "Maximum characters to return (default 2500).", "default": 2500},
+        },
+    },
+)
+def _browser_read_page(max_chars: int = 2500) -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.read_page(max_chars=max_chars)
+        return ToolResult(
+            ok=True,
+            message=f"Content from '{res['title']}':\n{res['text']}",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to read page: {exc}")
+
+
+@registry.tool(
+    name="browser_inspect_page",
+    description="Inspect interactive controls (buttons, links, inputs) on the current browser page to find targets for click or typing.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "max_elements": {"type": "integer", "description": "Maximum elements to inspect (default 40).", "default": 40},
+        },
+    },
+)
+def _browser_inspect_page(max_elements: int = 40) -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.inspect_page(max_elements=max_elements)
+        elements_fmt = "\n".join(
+            f"- [{e['role']}] '{e['name']}' ({e['tag']})" for e in res["elements"]
+        )
+        return ToolResult(
+            ok=True,
+            message=f"Found {len(res['elements'])} controls on '{res['title']}':\n{elements_fmt}",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to inspect page: {exc}")
+
+
+@registry.tool(
+    name="browser_click",
+    description="Click a visible control (button, link) by accessible name, visible text, or selector for safe non-consequential navigation.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "target": {"type": "string", "description": "Name or text of the control to click."},
+        },
+        "required": ["target"],
+    },
+)
+def _browser_click(target: str) -> ToolResult:
+    from app.brain.browser import browser_manager, is_consequential_target
+    if is_consequential_target(target):
+        return ToolResult(
+            ok=False,
+            message=(
+                f"Target '{target}' appears to be consequential (e.g. submit/buy/delete). "
+                "Use 'browser_consequential_click' so the user can review and approve it."
+            ),
+        )
+    try:
+        res = browser_manager.click(target)
+        return ToolResult(
+            ok=True,
+            message=f"Clicked '{target}'. Now on '{res['title']}'.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to click '{target}': {exc}")
+
+
+@registry.tool(
+    name="browser_consequential_click",
+    description="Click a consequential control (e.g. 'Submit', 'Buy', 'Delete', 'Pay', 'Confirm'). AMBER: asks user approval first.",
+    risk=RiskLevel.AMBER,
+    parameters={
+        "type": "object",
+        "properties": {
+            "target": {"type": "string", "description": "Consequential button or control to click."},
+        },
+        "required": ["target"],
+    },
+)
+def _browser_consequential_click(target: str) -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.click(target)
+        return ToolResult(
+            ok=True,
+            message=f"Consequential action approved and executed: clicked '{target}'. Now on '{res['title']}'.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Consequential click failed for '{target}': {exc}")
+
+
+@registry.tool(
+    name="browser_type_text",
+    description="Type text into a search box, input field, or textarea on the active page.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "target": {"type": "string", "description": "Label, placeholder, or selector of the input field."},
+            "text": {"type": "string", "description": "The text to type."},
+        },
+        "required": ["target", "text"],
+    },
+)
+def _browser_type_text(target: str, text: str) -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.type_text(target, text)
+        return ToolResult(
+            ok=True,
+            message=f"Typed text into '{target}' and submitted.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to type text into '{target}': {exc}")
+
+
+@registry.tool(
+    name="browser_scroll",
+    description="Scroll the current page 'down' or 'up'.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "direction": {"type": "string", "enum": ["down", "up"], "description": "'down' (default) or 'up'.", "default": "down"},
+        },
+    },
+)
+def _browser_scroll(direction: str = "down") -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.scroll(direction)
+        return ToolResult(ok=True, message=f"Scrolled {direction}.", data=res)
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to scroll: {exc}")
+
+
+@registry.tool(
+    name="browser_go_back",
+    description="Navigate back to the previous webpage.",
+    risk=RiskLevel.GREEN,
+    parameters={"type": "object", "properties": {}},
+)
+def _browser_go_back() -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        res = browser_manager.go_back()
+        return ToolResult(ok=True, message=f"Navigated back to '{res['title']}'.", data=res)
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to go back: {exc}")
+
+
+@registry.tool(
+    name="browser_close",
+    description="Close the active browser window when web browsing is finished.",
+    risk=RiskLevel.GREEN,
+    parameters={"type": "object", "properties": {}},
+)
+def _browser_close() -> ToolResult:
+    from app.brain.browser import browser_manager
+    try:
+        browser_manager.close()
+        return ToolResult(ok=True, message="Browser closed cleanly, boss.", data={})
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to close browser: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Screen Capture Tool (Prompt 2A)
+# ---------------------------------------------------------------------------
+
+@registry.tool(
+    name="capture_screen",
+    description="Capture user screen ('full', 'active_window', or 'region'). Triggers local Sensitivity Gate preview.",
+    risk=RiskLevel.AMBER,
+    parameters={
+        "type": "object",
+        "properties": {
+            "target": {
+                "type": "string",
+                "enum": ["full", "active_window", "region"],
+                "description": "'full' (default), 'active_window', or 'region'.",
+                "default": "full",
+            },
+        },
+    },
+)
+def _capture_screen_tool(target: str = "full") -> ToolResult:
+    from app.core.screen import screen_manager
+    try:
+        res = screen_manager.create_capture(target=target)
+        return ToolResult(
+            ok=True,
+            message=f"Screen captured ({res['target']}, {res['width']}x{res['height']}). Sensitivity Gate preview is ready.",
+            data={"capture_id": res["capture_id"], "width": res["width"], "height": res["height"], "target": res["target"]},
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Screen capture failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Notes Tools (Prompt 3A & 3C)
+# ---------------------------------------------------------------------------
+
+@registry.tool(
+    name="create_note",
+    description="Save a markdown note to data/notes/.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "Title of the note."},
+            "content": {"type": "string", "description": "Markdown body text."},
+        },
+        "required": ["title", "content"],
+    },
+)
+def _create_note_tool(title: str, content: str) -> ToolResult:
+    from app.core.notes import create_note
+    try:
+        res = create_note(title=title, content=content)
+        return ToolResult(
+            ok=True,
+            message=f"Saved note '{title}' at {res['filename']}.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to create note: {exc}")
+
+
+@registry.tool(
+    name="append_note",
+    description="Append content to an existing note.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "Title or slug of note."},
+            "content": {"type": "string", "description": "Text to append."},
+        },
+        "required": ["title", "content"],
+    },
+)
+def _append_note_tool(title: str, content: str) -> ToolResult:
+    from app.core.notes import append_note
+    try:
+        res = append_note(title=title, content=content)
+        return ToolResult(
+            ok=True,
+            message=f"Appended to note '{title}'.",
+            data=res,
+        )
+    except Exception as exc:
+        return ToolResult(ok=False, message=f"Failed to append note: {exc}")
+
+
+@registry.tool(
+    name="read_note",
+    description="Read full markdown content of a note by title.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "Title or slug of note."},
+        },
+        "required": ["title"],
+    },
+)
+def _read_note_tool(title: str) -> ToolResult:
+    from app.core.notes import read_note
+    txt = read_note(title=title)
+    if txt is None:
+        return ToolResult(ok=False, message=f"Note '{title}' not found.")
+    return ToolResult(ok=True, message=txt, data={"content": txt})
+
+
+@registry.tool(
+    name="list_notes",
+    description="List all saved notes.",
+    risk=RiskLevel.GREEN,
+    parameters={"type": "object", "properties": {}},
+)
+def _list_notes_tool() -> ToolResult:
+    from app.core.notes import list_notes
+    notes = list_notes()
+    if not notes:
+        return ToolResult(ok=True, message="No notes saved yet.", data={"notes": []})
+    formatted = "\n".join(f"- {n['title']} ({n['filename']})" for n in notes)
+    return ToolResult(ok=True, message=f"Saved notes:\n{formatted}", data={"notes": notes})
+
+
+# ---------------------------------------------------------------------------
+# Memory 2.0 Tools (Prompt 4)
+# ---------------------------------------------------------------------------
+
+@registry.tool(
+    name="propose_memory",
+    description="Propose a learned fact to the Candidate Inbox for user approval before saving. Rejects secrets automatically.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "entity_name": {"type": "string", "description": "Name of person, project, place, or topic."},
+            "text": {"type": "string", "description": "The fact learned."},
+            "entity_type": {
+                "type": "string",
+                "enum": ["person", "project", "place", "org", "topic"],
+                "description": "Category of entity (default 'topic').",
+                "default": "topic",
+            },
+        },
+        "required": ["entity_name", "text"],
+    },
+)
+def _propose_memory_tool(entity_name: str, text: str, entity_type: str = "topic") -> ToolResult:
+    from app.memory.memory_v2 import memory_v2
+    res = memory_v2.propose_candidate(entity_name=entity_name, text=text, entity_type=entity_type, source="conversation")
+    if not res.get("ok", True):
+        return ToolResult(ok=False, message=res.get("message", "Rejected."))
+    return ToolResult(
+        ok=True,
+        message=f"Proposed to Candidate Inbox: '{entity_name}: {text}'. Ask user briefly if they want you to remember it.",
+        data=res,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Deterministic Offline Skills (Human Mode H3 — GREEN)
+# ---------------------------------------------------------------------------
+
+@registry.tool(
+    name="calculate",
+    description="Deterministic AST calculator for arithmetic, percentages, and math functions. Always use for maths instead of mental arithmetic.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "expression": {"type": "string", "description": "Math or spoken arithmetic expression."},
+        },
+        "required": ["expression"],
+    },
+)
+def _calculate_tool(expression: str) -> ToolResult:
+    from app.brain.skills import safe_calculate
+    res = safe_calculate(expression)
+    if not res.get("ok"):
+        return ToolResult(ok=False, message=res.get("error", "Calculation failed."))
+    return ToolResult(ok=True, message=f"{res['formatted']} ({res['working']})", data=res)
+
+
+@registry.tool(
+    name="convert_units",
+    description="Deterministic physical unit conversion (length, weight, temperature, volume, speed, data size).",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "value": {"type": "number", "description": "Numeric value to convert."},
+            "from_unit": {"type": "string", "description": "Source unit (e.g. fahrenheit, km, mb)."},
+            "to_unit": {"type": "string", "description": "Target unit (e.g. celsius, miles, gb)."},
+        },
+        "required": ["value", "from_unit", "to_unit"],
+    },
+)
+def _convert_units_tool(value: float, from_unit: str, to_unit: str) -> ToolResult:
+    from app.brain.skills import convert_units
+    res = convert_units(value, from_unit, to_unit)
+    if not res.get("ok"):
+        return ToolResult(ok=False, message=res.get("error", "Unit conversion failed."))
+    return ToolResult(ok=True, message=res["working"], data=res)
+
+
+@registry.tool(
+    name="set_timer",
+    description="Set a local persistent countdown timer.",
+    risk=RiskLevel.GREEN,
+    parameters={
+        "type": "object",
+        "properties": {
+            "duration_seconds": {"type": "integer", "description": "Duration in seconds."},
+            "label": {"type": "string", "description": "Optional timer label.", "default": "Timer"},
+        },
+        "required": ["duration_seconds"],
+    },
+)
+def _set_timer_tool(duration_seconds: int, label: str = "Timer") -> ToolResult:
+    from app.brain.skills import set_timer
+    res = set_timer(duration_seconds, label)
+    return ToolResult(ok=True, message=res["reply"], data=res)
+
+
+@registry.tool(
+    name="get_system_status",
+    description="Get truthful local CPU, RAM, and battery status.",
+    risk=RiskLevel.GREEN,
+    parameters={"type": "object", "properties": {}},
+)
+def _get_system_status_tool() -> ToolResult:
+    from app.brain.skills import get_system_status_reply
+    return ToolResult(ok=True, message=get_system_status_reply())
+
+
+
+
+
+
 

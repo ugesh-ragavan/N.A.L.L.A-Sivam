@@ -74,7 +74,9 @@ def test_persona_raw_editor_and_revert():
     assert revert_res.status_code == 200
 
 
-def test_api_personality_test():
+def test_api_personality_test(monkeypatch):
+    from unittest.mock import MagicMock
+    monkeypatch.setattr("app.brain.gemini_provider.GeminiProvider.generate", lambda *a, **kw: MagicMock(text="Mocked live test reply"))
     res = client.post("/api/personality/test", json={
         "message": "Nalla!",
         "sarcasm": 9,
@@ -144,3 +146,32 @@ def test_model_settings_update():
     assert res.status_code == 200
     data = res.json()
     assert data["chat_model"] == "gemini-2.0-flash-lite"
+
+
+def test_hud_look_and_settings_persistence():
+    # Verify index HTML contains HUD elements
+    res_index = client.get("/")
+    assert res_index.status_code == 200
+    html = res_index.text
+    assert "hud-look" in html
+    assert "hud-boot-overlay" in html
+    assert "hud-corner-readout" in html
+    assert "hud-subtitles-container" in html
+    assert "set-talk-look" in html
+
+    # Verify settings API returns talk_look
+    get_res = client.get("/api/settings")
+    assert get_res.status_code == 200
+    settings_data = get_res.json()
+    assert "talk_look" in settings_data
+
+    # Test toggling talk_look via POST /api/settings
+    post_res = client.post("/api/settings", json={"talk_look": "minimal"})
+    assert post_res.status_code == 200
+    assert post_res.json()["talk_look"] == "minimal"
+
+    # Reset back to default hud
+    reset_res = client.post("/api/settings", json={"talk_look": "hud"})
+    assert reset_res.status_code == 200
+    assert reset_res.json()["talk_look"] == "hud"
+

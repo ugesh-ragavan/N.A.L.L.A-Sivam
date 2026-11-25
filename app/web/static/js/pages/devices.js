@@ -30,7 +30,15 @@
       devicesData = data.devices || [];
 
       // Render Device Cards
-      container.innerHTML = devicesData.map((d) => {
+      if (devicesData.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1/-1;">
+            <div class="empty-state-icon">📡</div>
+            <div class="empty-state-text">No IoT devices registered on the local network. ESP devices will appear here once connected.</div>
+          </div>
+        `;
+      } else {
+        container.innerHTML = devicesData.map((d) => {
         const isOnline = d.online;
         const isOn = d.state === "on";
         return `
@@ -85,6 +93,7 @@
           </div>
         `;
       }).join("");
+      }
 
       // Render History Table
       if (historyBody && data.history) {

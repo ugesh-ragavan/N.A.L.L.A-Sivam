@@ -43,6 +43,7 @@ _BACKOFF_BASE  = 2.0   # seconds; doubles each attempt
 # Token limits by call type
 _MAX_TOKENS_CHAT    = 150   # short conversational replies
 _MAX_TOKENS_TOOLS   = 400   # tool-use turns need more room
+_FALLBACK_MODELS    = ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
 
 
 def _is_thinking_model(model: str) -> bool:
@@ -65,10 +66,12 @@ class GeminiProvider(LLMProvider):
         api_key: str | None = None,
         model: str | None = None,
         command_model: str | None = None,
+        temperature: float | None = None,
     ) -> None:
         self._api_key       = api_key or config.GEMINI_API_KEY
         self._chat_model    = model or config.GEMINI_CHAT_MODEL
         self._command_model = command_model or config.GEMINI_COMMAND_MODEL
+        self._temperature   = temperature if temperature is not None else config.GEMINI_TEMPERATURE
         self._client        = None   # singleton, created on first use
 
     # ------------------------------------------------------------------
@@ -105,56 +108,72 @@ class GeminiProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
         system_prompt: str | None = None,
+        model: str | None = None,
     ) -> LLMResponse:
         """Send a full conversation to Gemini and return one response."""
         client = self._get_client()
         gemini_contents = _messages_to_gemini(messages)
         gemini_tools    = _tools_to_gemini(tools) if tools else None
 
-        # Pick model: use command_model only when tool schemas are attached
-        model = self._command_model if gemini_tools else self._chat_model
+        # Pick model: explicit model parameter > command_model (with tools) > chat_model
+        if not model:
+            model = self._command_model if gemini_tools else self._chat_model
 
-        cfg: dict[str, Any] = {}
+        base_cfg: dict[str, Any] = {
+            "temperature": self._temperature,
+        }
         if system_prompt:
-            cfg["system_instruction"] = system_prompt
+            base_cfg["system_instruction"] = system_prompt
         if gemini_tools:
-            cfg["tools"] = gemini_tools
-            cfg["max_output_tokens"] = _MAX_TOKENS_TOOLS
+            base_cfg["tools"] = gemini_tools
+            base_cfg["max_output_tokens"] = _MAX_TOKENS_TOOLS
         else:
-            cfg["max_output_tokens"] = _MAX_TOKENS_CHAT
+            base_cfg["max_output_tokens"] = _MAX_TOKENS_CHAT
 
-        # Thinking level — MINIMAL for speed (thinking models only)
-        if _is_thinking_model(model):
-            cfg["thinking_config"] = {"thinking_level": "minimal"}
-
+        candidate_models = [model] + [m for m in _FALLBACK_MODELS if m != model]
         last_exc: Exception | None = None
-        for attempt in range(1, _MAX_RETRIES + 1):
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=gemini_contents,
-                    config=cfg if cfg else None,
-                )
-                return _parse_response(response)
-            except Exception as exc:
-                exc_str = str(exc)
-                retryable = any(
-                    s in exc_str for s in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")
-                )
-                if retryable and attempt < _MAX_RETRIES:
-                    wait = _BACKOFF_BASE ** attempt
-                    logger.warning(
-                        "Gemini %s (attempt %d/%d) — retrying in %.0fs…",
-                        exc_str[:60], attempt, _MAX_RETRIES, wait,
+
+        for cur_model in candidate_models:
+            cfg = dict(base_cfg)
+            if _is_thinking_model(cur_model):
+                cfg["thinking_config"] = {"thinking_level": "minimal"}
+            elif "thinking_config" in cfg:
+                del cfg["thinking_config"]
+
+            for attempt in range(1, _MAX_RETRIES + 1):
+                try:
+                    response = client.models.generate_content(
+                        model=cur_model,
+                        contents=gemini_contents,
+                        config=cfg if cfg else None,
                     )
-                    time.sleep(wait)
+                    return _parse_response(response)
+                except Exception as exc:
+                    exc_str = str(exc)
+                    retryable = any(
+                        s in exc_str for s in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")
+                    )
                     last_exc = exc
-                    continue
-                last_exc = exc
-                break
+                    # If 503/UNAVAILABLE and we have a fallback model waiting, switch faster
+                    if "503" in exc_str or "UNAVAILABLE" in exc_str:
+                        if len(candidate_models) > 1 and cur_model != candidate_models[-1]:
+                            logger.warning(
+                                "Gemini model %s returned 503/UNAVAILABLE — falling back to next model…",
+                                cur_model,
+                            )
+                            break
+                    if retryable and attempt < _MAX_RETRIES:
+                        wait = _BACKOFF_BASE ** attempt
+                        logger.warning(
+                            "Gemini %s on %s (attempt %d/%d) — retrying in %.0fs…",
+                            exc_str[:60], cur_model, attempt, _MAX_RETRIES, wait,
+                        )
+                        time.sleep(wait)
+                        continue
+                    break
 
         msg = _friendly_error(last_exc)
-        logger.error("Gemini generate failed after %d attempts: %s", _MAX_RETRIES, last_exc)
+        logger.error("Gemini generate failed across candidate models: %s", last_exc)
         raise RuntimeError(msg) from last_exc
 
     def stream(
@@ -172,32 +191,135 @@ class GeminiProvider(LLMProvider):
         gemini_contents = _messages_to_gemini(messages)
 
         # Always use chat_model for final streaming answer
-        model = self._chat_model
+        primary_model = self._chat_model
+        candidate_models = [primary_model] + [m for m in _FALLBACK_MODELS if m != primary_model]
+
+        last_exc: Exception | None = None
+        for cur_model in candidate_models:
+            cfg: dict[str, Any] = {
+                "max_output_tokens": _MAX_TOKENS_CHAT,
+                "temperature": self._temperature,
+            }
+            if system_prompt:
+                cfg["system_instruction"] = system_prompt
+            if _is_thinking_model(cur_model):
+                cfg["thinking_config"] = {"thinking_level": "minimal"}
+
+            for attempt in range(1, _MAX_RETRIES + 1):
+                yielded_any = False
+                try:
+                    stream_iter = client.models.generate_content_stream(
+                        model=cur_model,
+                        contents=gemini_contents,
+                        config=cfg,
+                    )
+                    for chunk in stream_iter:
+                        try:
+                            text = chunk.text
+                            if text:
+                                yielded_any = True
+                                yield text
+                        except Exception:
+                            continue
+                    return  # Success
+                except Exception as exc:
+                    exc_str = str(exc)
+                    last_exc = exc
+                    if yielded_any:
+                        # Cannot seamlessly fallback if tokens were already emitted to consumer
+                        msg = _friendly_error(exc)
+                        logger.error("Gemini stream interrupted after emitting chunks: %s", exc)
+                        raise RuntimeError(msg) from exc
+
+                    if ("503" in exc_str or "UNAVAILABLE" in exc_str) and cur_model != candidate_models[-1]:
+                        logger.warning(
+                            "Gemini stream %s on %s returned 503/UNAVAILABLE — falling back to next model…",
+                            exc_str[:60], cur_model,
+                        )
+                        break
+
+                    retryable = any(
+                        s in exc_str for s in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")
+                    )
+                    if retryable and attempt < _MAX_RETRIES:
+                        wait = _BACKOFF_BASE ** attempt
+                        logger.warning(
+                            "Gemini stream %s on %s (attempt %d/%d) — retrying in %.0fs…",
+                            exc_str[:60], cur_model, attempt, _MAX_RETRIES, wait,
+                        )
+                        time.sleep(wait)
+                        continue
+                    break
+
+        msg = _friendly_error(last_exc)
+        logger.error("Gemini stream failed across candidate models: %s", last_exc)
+        raise RuntimeError(msg) from last_exc
+
+    def generate_multimodal(
+        self,
+        prompt: str,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> LLMResponse:
+        """Send an image + text prompt to Gemini multimodal model with instruction shield."""
+        client = self._get_client()
+        from google.genai import types
+
+        chosen_model = model or self._chat_model
+        candidate_models = [chosen_model] + [m for m in _FALLBACK_MODELS if m != chosen_model]
+
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    types.Part.from_text(text=prompt),
+                ],
+            )
+        ]
 
         cfg: dict[str, Any] = {
-            "max_output_tokens": _MAX_TOKENS_CHAT,
+            "temperature": 0.2,
+            "max_output_tokens": 600,
         }
         if system_prompt:
             cfg["system_instruction"] = system_prompt
-        if _is_thinking_model(model):
+        if _is_thinking_model(chosen_model):
             cfg["thinking_config"] = {"thinking_level": "minimal"}
 
-        try:
-            for chunk in client.models.generate_content_stream(
-                model=model,
-                contents=gemini_contents,
-                config=cfg,
-            ):
+        last_exc: Exception | None = None
+        for cur_model in candidate_models:
+            cur_cfg = dict(cfg)
+            if _is_thinking_model(cur_model):
+                cur_cfg["thinking_config"] = {"thinking_level": "minimal"}
+            elif "thinking_config" in cur_cfg:
+                del cur_cfg["thinking_config"]
+
+            for attempt in range(1, _MAX_RETRIES + 1):
                 try:
-                    text = chunk.text
-                    if text:
-                        yield text
-                except Exception:
-                    continue
-        except Exception as exc:
-            msg = _friendly_error(exc)
-            logger.error("Gemini stream failed: %s", exc)
-            raise RuntimeError(msg) from exc
+                    response = client.models.generate_content(
+                        model=cur_model,
+                        contents=contents,
+                        config=cur_cfg,
+                    )
+                    return _parse_response(response)
+                except Exception as exc:
+                    exc_str = str(exc)
+                    retryable = any(
+                        s in exc_str for s in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")
+                    )
+                    last_exc = exc
+                    if retryable and attempt < _MAX_RETRIES:
+                        wait = _BACKOFF_BASE ** attempt
+                        time.sleep(wait)
+                        continue
+                    break
+
+        msg = _friendly_error(last_exc)
+        logger.error("Gemini generate_multimodal failed across candidate models: %s", last_exc)
+        raise RuntimeError(msg) from last_exc
 
     # ------------------------------------------------------------------
     # Internal helpers

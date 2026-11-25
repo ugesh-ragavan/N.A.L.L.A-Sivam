@@ -42,6 +42,11 @@ class WakeWordDetector(ABC):
     """Abstract interface for wake-word engines."""
 
     @abstractmethod
+    def get_name(self) -> str:
+        """Return the human-readable engine name."""
+        ...
+
+    @abstractmethod
     def start(self, on_detected: Callable[[], None]) -> None:
         """Start listening asynchronously for the wake word."""
         ...
@@ -59,10 +64,14 @@ class WakeWordDetector(ABC):
 
 class PushToTalk(WakeWordDetector):
     """Manual software trigger for keyboard and web dashboard."""
+    engine_name: str = "pushtotalk"
 
     def __init__(self) -> None:
         self._triggered = threading.Event()
         self._callback: Callable[[], None] | None = None
+
+    def get_name(self) -> str:
+        return "Push-to-Talk"
 
     def trigger(self) -> None:
         """Signal that push-to-talk was pressed."""
@@ -87,6 +96,7 @@ class PushToTalk(WakeWordDetector):
 
 class OpenWakeWordDetector(WakeWordDetector):
     """Continuous microphone stream monitoring using openWakeWord."""
+    engine_name: str = "openwakeword"
 
     def __init__(
         self,
@@ -103,13 +113,17 @@ class OpenWakeWordDetector(WakeWordDetector):
         self._thread: threading.Thread | None = None
         self._model = None
 
+    def get_name(self) -> str:
+        return "openWakeWord"
+
     def _init_model(self):
         if self._model is None:
             import openwakeword
+            import openwakeword.utils
             from openwakeword.model import Model
 
             # Check if custom model file or built-in model
-            kw = self.keyword.strip()
+            kw = (self.keyword or "hey jarvis").strip()
             if kw.endswith(".onnx") or kw.endswith(".tflite") or "/" in kw or "\\" in kw:
                 model_path = kw
                 framework = "tflite" if kw.endswith(".tflite") else "onnx"
@@ -123,6 +137,13 @@ class OpenWakeWordDetector(WakeWordDetector):
                     model_path = "hey_jarvis_v0.1.onnx"
                 framework = "onnx"
 
+            # Auto-download prebuilt model file if missing
+            if framework == "onnx" and not ("/" in model_path or "\\" in model_path):
+                try:
+                    openwakeword.utils.download_models([model_path])
+                except Exception as dl_err:
+                    logger.debug("Prebuilt model download check: %s", dl_err)
+
             logger.info(
                 "Initializing openWakeWord model: %s (framework: %s, sensitivity: %.2f)",
                 model_path,
@@ -131,6 +152,22 @@ class OpenWakeWordDetector(WakeWordDetector):
             )
             self._model = Model(wakeword_models=[model_path], inference_framework=framework)
         return self._model
+
+    def update_settings(self, keyword: str | None = None, sensitivity: float | None = None) -> None:
+        """Update keyword or sensitivity and reload model if changed."""
+        changed = False
+        if keyword is not None and keyword != self.keyword:
+            self.keyword = keyword
+            self._model = None
+            changed = True
+        if sensitivity is not None:
+            self.sensitivity = float(sensitivity)
+        if changed and self._thread and self._thread.is_alive():
+            # Restart listener
+            cb = self._callback
+            self.stop()
+            if cb:
+                self.start(cb)
 
     def _listen_loop(self) -> None:
         model = self._init_model()
@@ -189,4 +226,28 @@ def get_wakeword_detector(engine_name: str | None = None) -> WakeWordDetector:
     return PushToTalk()
 
 
-default_wakeword = get_wakeword_detector()
+default_wakeword: WakeWordDetector = get_wakeword_detector()
+
+
+def update_wakeword_settings(
+    engine: str | None = None,
+    keyword: str | None = None,
+    sensitivity: float | None = None,
+) -> WakeWordDetector:
+    """Update wake word settings and return the active detector instance."""
+    global default_wakeword
+    from app.config import save_wakeword_settings
+
+    save_wakeword_settings({
+        "engine": engine,
+        "keyword": keyword,
+        "sensitivity": sensitivity,
+    })
+
+    if engine and engine.lower() != getattr(default_wakeword, "engine_name", "").lower():
+        default_wakeword.stop()
+        default_wakeword = get_wakeword_detector(engine)
+    elif isinstance(default_wakeword, OpenWakeWordDetector):
+        default_wakeword.update_settings(keyword=keyword, sensitivity=sensitivity)
+
+    return default_wakeword

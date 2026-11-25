@@ -177,60 +177,126 @@ FOLLOW_UP_TIMEOUT=30.0
 FOLLOW_UP_ENABLED=true
 ```
 
-### Training a Custom "Nalla" (நல்ல) Wake Word Model
-To train your own custom wake word model that detects *"Nalla"*:
+### Training or Buying a Custom "Nalla" (நல்ல) Wake Word Model
+To use a custom wake word model that detects *"Nalla"* without any code changes:
 
+#### Option A: Train via openWakeWord Colab (Free & Automatic)
 1. **Open the Training Colab:**
    Visit the official openWakeWord automated model training notebook on Google Colab:
    [openWakeWord Training Notebook](https://colab.research.google.com/github/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb)
 2. **Configure the Target Phrase:**
-   Set the target wake word to `Nalla` (you can also provide phonetic spellings or variations like `nalla`, `nallaa`).
+   Set the target wake word to `Nalla` (you can also provide phonetic spellings or variations like `nalla`, `nallaa`, `நல்ல`).
 3. **Generate Synthetic Training Clips:**
    The notebook utilizes Text-to-Speech engines (Piper / Coqui) to synthesize thousands of training clips in diverse accents and tones.
 4. **Train and Export:**
    Train the lightweight binary classifier and export the model as an ONNX model: `nalla.onnx` (or `nalla.tflite`).
-5. **Install into Nalla:**
-   Place the exported file into your local models directory:
+
+#### Option B: Buy or Source Pre-Trained Keywords
+- Custom keywords can be sourced or purchased through professional audio dataset providers, the openWakeWord community model repository, or trained with tools like Picovoice Console / Edge Impulse.
+- Ensure the exported model is an ONNX (`.onnx`) or TFLite (`.tflite`) file compatible with 16 kHz 16-bit PCM input.
+
+#### Activating by Configuration Only
+1. Place the exported file into your local models directory:
    ```bash
    mkdir -p data/models/wakeword
    cp nalla.onnx data/models/wakeword/nalla.onnx
    ```
-6. **Activate via Configuration:**
-   In your `.env` (no code modifications needed):
+2. In your `.env` (or via the **Voice Studio** dashboard settings live):
    ```ini
    WAKE_WORD_ENGINE=openwakeword
    WAKE_WORD_KEYWORD=data/models/wakeword/nalla.onnx
    WAKE_WORD_SENSITIVITY=0.5
    ```
+   No codebase changes required — Nalla dynamically loads the ONNX weights at startup or upon saving in Voice Studio.
 
-### ⚡ Voice Features (Phase 4B)
-- **Barge-in:** Saying the wake word or pressing the hotkey/button while Nalla is speaking (`SPEAKING` state) immediately halts playback and begins listening to your new instruction.
-- **30-Second Follow-up Window:** When Nalla completes a response, it remains alert for 30 seconds. You can ask follow-up questions directly without repeating the wake word. If no speech is heard for 30s, it transitions back to `IDLE`.
-- **Tamil-English Bilingual Support:** Auto-detects Tamil (`ta`) or English (`en`) queries, automatically routing to `ta-IN-PallaviNeural` for Tamil text and `en-IN-NeerjaNeural` for English text.
+### ⚡ Voice Features & Acoustic Performance (Phase 4B)
+- **Barge-in Interruption (< 200 ms):** Saying the wake word or pressing the hotkey/button while Nalla is speaking (`SPEAKING` state) immediately halts speaker playback within 200 ms, joins the previous audio turn, and transitions to `LISTENING` for your new command.
+- **30-Second Follow-up Window:** When Nalla completes a response, it automatically remains in `LISTENING` mode for 30 seconds (configurable via `FOLLOW_UP_TIMEOUT`). An active countdown badge (`⏱️ 30s`) appears on the Orb. If you speak within this window, Nalla responds without requiring the wake word again. If silence persists for 30s, it cleanly transitions back to `IDLE`.
+- **Echo Control (Acoustic Isolation):** While Nalla is in `SPEAKING` state, the audio recorder stream is automatically muted and hardware capture is zeroed out in memory. This eliminates microphone acoustic feedback loops and prevents Nalla from transcribing its own voice.
+- **🎧 Headphone Recommendation:** For optimal hands-free barge-in performance—especially at higher speaker volumes or in rooms with acoustic reverberation—wearing headphones or a headset is strongly recommended.
+- **Tamil-English Bilingual Routing:** STT auto-detects English (`en`) and Tamil (`ta`) on every turn. Responses with Tamil characters or Tamil queries automatically route to Tamil voice profiles (`ta-IN-PallaviNeural`), while English turns use the primary voice profile (`en-IN-NeerjaNeural` or Gemini TTS).
+- **Whisper `base` vs `small` Tamil Benchmark:** Run `python scripts/test_tamil_english.py --model all` to benchmark Whisper model accuracy across 10 mixed Tamil-English sentences. Whisper `small` can be activated live in Voice Studio or via `POST /api/voice/stt-settings` for superior colloquial Tamil accuracy.
 
 ---
 
-## 📸 Control Center Dashboard (HUD v2.0) — Screenshot Checklist
+## 📸 Control Center Dashboard (HUD v2.0) — Screenshot Checklist & Page Tour
 
-The localhost web interface at `http://127.0.0.1:8000` is redesigned as a futuristic, glassmorphic HUD control center.
+The local web interface at `http://127.0.0.1:8000` is engineered as a high-density, cyberpunk glassmorphic HUD control center. The entire interface is 100% operable via keyboard shortcuts (`Space`, `M`, `Ctrl+K`, `?`, `Esc`, `1-9`, `0`) and the command palette.
 
-| Feature / Page | View Details & Visual Verification Checklist | Hotkey / Route |
+### 📋 Visual Verification & Screenshot Checklist
+
+| Feature / Overlay | Visual Verification Checklist | Route / Hotkey |
 | :--- | :--- | :--- |
-| **Centerpiece Orb (Home)** | Interactive canvas orb with 3D particle rings, dynamic breathing glow (IDLE), sonar ripples (LISTENING), gyroscopic gyro rings (THINKING), radiating waveform pulses (SPEAKING), and red flicker (ERROR). Status strip below with live telemetry. | `1` or `#home` |
-| **Push-To-Talk & Mic Control** | Big PTT button, mic mute toggle, stop playback button, and quick action chips (`"What time is it?"`, `"Remember this"`, `"Set reminder"`). | `Space` / `M` |
-| **Conversational Chat** | Modern chat bubbles (user & Nalla avatars), markdown rendering, collapsible tool-call inspection cards showing arguments, execution status, and results. | `2` or `#chat` |
-| **Voice Studio** | Neural EdgeTTS & offline Piper voice selector, live audio test button, rate/pitch/volume sliders, profiles ("Warm Companion", "Robotic Butler", "Tamil Native"), STT model selector, live microphone energy level meter. | `3` or `#voice` |
-| **Personality Studio** | Sliders for Sarcasm (0-10), Warmth (0-10), Tamil mix (0-100%), Verbosity; 4 modes (Friend, Jarvis, Focus, Engineer); editable `persona/nalla_master.md` with save/revert; live system prompt preview; **instant Test Chat box** testing unsaved slider settings live. | `4` or `#personality` |
-| **Durable Memory Bank** | Responsive card grid with instant SQLite FTS5 search, category filters (preference, fact, project, person, task), inline editing, hard delete, add memory form, JSON backup export. | `5` or `#memory` |
-| **Reminders & Tasks** | Countdown list with due timestamps, status badges (pending, done), quick add form, mark done button, snooze (+15m, +30m, +60m). | `6` or `#reminders` |
-| **IoT Hardware Fleet** | ESP32 / ESP8266 device cards (Relay, DHT22 Climate Sensor, Bedroom Fan, Smart Plug) with online/offline dots, sensor gauges, SVG sparklines, control toggles with ACK state transitions, command history. | `7` or `#devices` |
-| **Performance Waterfall** | Real-time per-turn latency waterfall breakdown (STT, Memory search, Prompt build, LLM 1st token, TTS 1st audio, total duration), average metrics cards, requests today counter, clear metrics button. | `8` or `#performance` |
-| **Unified Activity Log** | Timeline event chronicle for speech turns, tool executions, and system events with category filter pills (`All`, `Voice`, `Tools`, `Memory`). | `9` or `#activity` |
-| **Settings & Danger Zone** | Masked Gemini API key with reveal toggle, chat/command model selection, color theme picker (Cyan, Violet, Amber, Green), sound effects toggle, keyboard shortcuts guide, danger zone (wipe memories with typed `DELETE` confirmation). | `0` or `#settings` |
-| **Command Palette (Ctrl+K)** | Floating fuzzy search modal to jump to any page or trigger actions (mute mic, trigger PTT, switch themes, switch modes, run tests). | `Ctrl+K` |
-| **Approval Modal** | AMBER & RED risk tier modal gating sensitive tools with synthesized Web Audio chimes, description preview, Approve and Deny buttons. | Automated on AMBER |
-| **Theme Switcher** | 4 Cyberpunk accent palettes (Cyan `#00f0ff`, Violet `#b05cff`, Amber `#f59e0b`, Green `#10b981`) dynamically updating all glows, borders, and controls via CSS variables. | Top HUD Bar |
-| **Responsive Mobile View** | Sidebar collapses seamlessly to bottom navigation bar with touch-friendly controls on mobile viewports. | Responsive |
+| **1. Home & Orb Centerpiece** | Canvas particle orb reacting dynamically to states (`IDLE`, `LISTENING`, `THINKING`, `SPEAKING`, `ERROR`). Telemetry status strip, quick-action chips, and real-time live transcript feed with speaker role badges. | `1` or `#home` |
+| **2. Chat & Tool Inspector** | Modern bubbles, streaming text tokens, hidden expressive speech tags (`<chuckle>` stripped), rich tool-call cards with expandable inputs/outputs and confirmation states, copy and clear buttons. | `2` or `#chat` |
+| **3. Voice Studio** | Multi-engine selector (Gemini 3.8 TTS, Neural EdgeTTS, Offline Piper), Voice Library with dialect filters (`Tamil`, `English (India)`), 5 named profiles, speaking rate/pitch/volume controls, live mic VU level meter. | `3` or `#voice` |
+| **4. Personality Studio** | Sarcasm (0-10), Warmth (0-10), Tamil Mix (0-100%), Verbosity sliders; Presets ("Cool Friend", "Pure Jarvis", "Roast Mode", "Calm Night"); live prompt preview; ephemeral test chat box; dual-model comparator. Locked Identity Guard non-editable cards. | `4` or `#personality` |
+| **5. Memory Bank** | SQLite FTS5 card grid, category pills (`Preference`, `Fact`, `Project`, `Person`, `Task`), importance rating stars (1-5), inline text edit, delete with confirmation modal, JSON backup export, and "Last Used Memories" panel. | `5` or `#memory` |
+| **6. Reminders & Tasks** | Chronological task queue with countdown timers to due times, status badges (`PENDING`, `DONE`), quick-add datetime picker form, done toggle, and snooze buttons (`+15m`, `+30m`, `+60m`). | `6` or `#reminders` |
+| **7. Devices Fleet (IoT)** | ESP32 / ESP8266 node telemetry cards with online/offline ping status, live sensor gauges (Temperature, Humidity), SVG sparklines, relay toggles with `ACK_CONFIRMED` states, and MQTT command audit table. | `7` or `#devices` |
+| **8. Performance Waterfall** | Per-turn latency waterfall telemetry (STT capture, Memory retrieval, Prompt composition, LLM First Token, TTS First Audio chunk, Total turn duration), 50-turn averages, requests today counter, and cache hit metrics. | `8` or `#performance` |
+| **9. Unified Activity Log** | Categorized timeline of speech turns, tool runs, approval decisions, and runtime errors. Category filter pills (`ALL`, `VOICE`, `TOOL`, `APPROVAL`, `ERROR`), search box, and JSON export. | `9` or `#activity` |
+| **10. Settings & Danger Zone** | Masked Gemini API key with preview eye toggle, separate Chat Model and Command Model dropdowns, accent color theme picker (Cyan, Violet, Amber, Green), sound effects toggle with volume slider, data export/import, and SQLite memory wipe with typed confirmation. | `0` or `#settings` |
+| **Command Palette Overlay** | Floating glassmorphic command palette with fuzzy search to jump to any page, switch personality modes, change themes, trigger voice actions, quick add reminders, or view system errors. | `Ctrl+K` |
+| **Shortcuts Cheat-Sheet** | HUD glassmorphic modal listing every keyboard shortcut with high-contrast `<kbd>` badges. Dismissible with `Esc` or clicking outside. | `?` or `Shift+/` |
+| **Last Error Details Modal** | Diagnostic popup surfacing the most recent runtime exception, subsystem name, timestamp, and a direct jump button to Activity Log. | Palette or Error event |
+| **Action Approval Modal** | High-contrast AMBER / RED risk modal requiring explicit human approval before executing sensitive tools (relays, wipes, writes) with Web Audio approval chime. | Triggered by AMBER tool |
+
+---
+
+### 🗺️ Page-by-Page Tour
+
+1. **Page 1: Home & Orb (`1`)**  
+   The primary visual anchor. At the center sits the dynamic Canvas Orb featuring 3 concentric particle rings that pulse with breathing glows in `IDLE`, expand into sonic ripples in `LISTENING`, revolve rapidly into gyroscopic rings during `THINKING`, and emit radial audio wave spikes during `SPEAKING`. Quick action chips let you immediately trigger common requests (*"What time is it?"*, *"Remember this"*, *"Set a reminder"*), while the live transcript strip tracks your spoken conversation in real time.
+
+2. **Page 2: Chat & Tool Inspector (`2`)**  
+   A dedicated interface for deep conversational reasoning and inspection. Every tool call executed by the agent (such as local time retrieval, weather checks, or memory storage) renders as an interactive card displaying tool parameters, execution outcome, and latency. Expressive emotional speech tags like `<chuckle>` and `<sigh>` are stripped from text displays so the reading experience remains completely clean.
+
+3. **Page 3: Voice Studio (`3`)**  
+   The acoustic engine room. Seamlessly audition and configure TTS across Google Gemini TTS (`gemini-3.8-flash-lite-tts`, `gemini-3.8-flash-tts`), Microsoft Edge Neural voices (`ta-IN-PallaviNeural`, `en-IN-NeerjaNeural`), and offline Piper. Manage up to 5 custom named voice profiles, tune speech speed presets (*Relaxed*, *Normal*, *Quick*), test microphone input levels with live energy meters, and preview pronunciation overrides with live audio playback.
+
+4. **Page 4: Personality Studio (`4`)**  
+   Fine-tune Nalla's behavior and humor. Adjust 4 core sliders (Sarcasm, Warmth, Tamil mix, Verbosity) or click instant presets (*"Cool Friend"*, *"Pure Jarvis"*, *"Roast Mode"*, *"Calm Night"*). Inspect the live prompt composition before it reaches Gemini, test the unsaved settings in an ephemeral Test Chat sandbox, compare outputs side-by-side across two Gemini models, and edit few-shot dialogue examples. The foundational Identity Guard rules remain locked and tamper-proof.
+
+5. **Page 5: Memory Bank (`5`)**  
+   Your personal knowledge base. Browse and search SQLite memories using instant full-text search (FTS5). Filter by category (*Preference*, *Fact*, *Project*, *Person*, *Task*) or star importance (1 to 5). Edit memories directly inline, delete outdated information with safety prompts, or review the **Last Used Memories** panel to see exactly which context facts were injected into the most recent model turn.
+
+6. **Page 6: Reminders & Tasks (`6`)**  
+   A productivity queue with visible countdown timers for upcoming tasks. Quickly schedule reminders using natural datetime pickers, mark completed tasks with one click, or snooze reminders by 15, 30, or 60 minutes. Reminders persist in SQLite and trigger notifications automatically upon due time.
+
+7. **Page 7: Devices Fleet (`7`)**  
+   Hardware control deck for ESP32 and ESP8266 IoT nodes over local MQTT. Monitor temperature and humidity sensor telemetry with live SVG sparklines, toggle relays and smart plugs, track `ACK_CONFIRMED` states from microcontrollers, and inspect the historical command log.
+
+8. **Page 8: Performance Waterfall (`8`)**  
+   Real-time telemetry waterfall charting every millisecond of a voice turn: audio capture, STT transcription, memory retrieval, prompt construction, LLM time-to-first-token (TTFT), and TTS first-chunk synthesis. Displays 50-turn rolling averages, cache hit ratios, and today's total API token counters to keep performance blisteringly fast.
+
+9. **Page 9: Activity Log (`9`)**  
+   A searchable, filterable timeline auditing every system event, user query, tool invocation, human approval, and runtime exception. Allows exporting the event log as JSON for diagnostic analysis.
+
+10. **Page 10: System Settings (`0`)**  
+    Configure application-wide settings: toggle or reveal the Gemini API key, switch between `gemini-3.1-flash-lite` and `gemini-2.5-flash` for chat and command models, adjust the synthesized chime volume (0–100%), select your favorite HUD accent palette, and access the Danger Zone to purge local memory stores.
+
+---
+
+### ⌨️ Complete Keyboard Shortcuts Reference
+
+| Shortcut | Action | Scope / Context |
+| :--- | :--- | :--- |
+| <kbd>Space</kbd> | Push-to-Talk (Start listening) | Global (when not typing in an input field) |
+| <kbd>M</kbd> | Toggle microphone mute / unmute | Global (when not typing in an input field) |
+| <kbd>Esc</kbd> | Stop speaking immediately & dismiss open modals | Global |
+| <kbd>Ctrl</kbd> + <kbd>K</kbd> | Toggle Command Palette | Global |
+| <kbd>?</kbd> or <kbd>Shift</kbd> + <kbd>/</kbd> | Toggle Shortcuts Cheat-Sheet overlay | Global (when not typing in an input field) |
+| <kbd>1</kbd> | Navigate to Home & Orb | Global (when not typing in an input field) |
+| <kbd>2</kbd> | Navigate to Chat & Tools | Global (when not typing in an input field) |
+| <kbd>3</kbd> | Navigate to Voice Studio | Global (when not typing in an input field) |
+| <kbd>4</kbd> | Navigate to Personality Studio | Global (when not typing in an input field) |
+| <kbd>5</kbd> | Navigate to Memory Bank | Global (when not typing in an input field) |
+| <kbd>6</kbd> | Navigate to Reminders & Tasks | Global (when not typing in an input field) |
+| <kbd>7</kbd> | Navigate to IoT Devices Fleet | Global (when not typing in an input field) |
+| <kbd>8</kbd> | Navigate to Performance Waterfall | Global (when not typing in an input field) |
+| <kbd>9</kbd> | Navigate to Activity Log | Global (when not typing in an input field) |
+| <kbd>0</kbd> | Navigate to System Settings | Global (when not typing in an input field) |
 
 ---
 

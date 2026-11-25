@@ -456,6 +456,235 @@ class MemoryStore:
         finally:
             conn.close()
 
+    # ------------------------------------------------------------------
+    # Tasks Management
+    # ------------------------------------------------------------------
+
+    def add_task(
+        self,
+        title: str,
+        priority: int = 2,
+        due_at: str | None = None,
+        project: str | None = None,
+    ) -> int:
+        """Add a new task. Priority: 1 (high), 2 (medium), 3 (low)."""
+        title = title.strip()
+        if not title:
+            raise ValueError("Task title cannot be empty.")
+        if priority not in (1, 2, 3):
+            raise ValueError("Task priority must be 1 (high), 2 (medium), or 3 (low).")
+
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO tasks (title, status, priority, due_at, project, created_at)
+                    VALUES (?, 'open', ?, ?, ?, ?)
+                    """,
+                    (title, priority, due_at, project, now),
+                )
+                task_id = cursor.lastrowid
+                logger.info("Added task #%d: '%s' (priority %d)", task_id, title, priority)
+                return task_id
+        finally:
+            conn.close()
+
+    def list_tasks(
+        self,
+        status: str = "open",
+        project: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """List tasks ordered by priority (1=high, 2=med, 3=low), then due_at, then created_at."""
+        clauses = []
+        params: list[Any] = []
+
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if project:
+            clauses.append("project = ?")
+            params.append(project)
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        query = f"""
+            SELECT id, title, status, priority, due_at, project, created_at, completed_at
+            FROM tasks
+            {where}
+            ORDER BY priority ASC,
+                     CASE WHEN due_at IS NULL OR due_at = '' THEN 1 ELSE 0 END ASC,
+                     due_at ASC,
+                     created_at ASC
+            LIMIT ?
+        """
+        params.append(limit)
+
+        conn = self._conn()
+        try:
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def next_task(self) -> dict[str, Any] | None:
+        """Get the single highest priority open task.
+
+        Ordered by priority (1 before 2 before 3),
+        then earliest due date (nulls last),
+        then oldest created_at.
+        """
+        tasks = self.list_tasks(status="open", limit=1)
+        return tasks[0] if tasks else None
+
+    def complete_task(self, task_id: int) -> bool:
+        """Mark a task as done with completed_at timestamp."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'done', completed_at = ?
+                    WHERE id = ?
+                    """,
+                    (now, task_id),
+                )
+                return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+    def reprioritise_task(self, task_id: int, new_priority: int) -> bool:
+        """Change task priority (1=high, 2=medium, 3=low)."""
+        if new_priority not in (1, 2, 3):
+            raise ValueError("Priority must be 1, 2, or 3.")
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE tasks SET priority = ? WHERE id = ?",
+                    (new_priority, task_id),
+                )
+                return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+    def delete_task(self, task_id: int) -> bool:
+        """Delete a task completely."""
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+                return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Conversation Sessions & Background Summary
+    # ------------------------------------------------------------------
+
+    def get_session_summary(self, session_id: str) -> dict[str, Any] | None:
+        """Retrieve the persisted background summary for older exchanges in this session."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                """
+                SELECT session_id, summary, last_summarized_msg_id, updated_at
+                FROM conversation_summaries
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def save_session_summary(self, session_id: str, summary: str, last_summarized_msg_id: int) -> None:
+        """Persist or update summary of older conversation messages."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._conn()
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO conversation_summaries (session_id, summary, last_summarized_msg_id, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(session_id) DO UPDATE SET
+                        summary = excluded.summary,
+                        last_summarized_msg_id = excluded.last_summarized_msg_id,
+                        updated_at = excluded.updated_at
+                    """,
+                    (session_id, summary, last_summarized_msg_id, now),
+                )
+        finally:
+            conn.close()
+
+    def get_last_message_timestamp(self, session_id: str) -> datetime | None:
+        """Get the datetime of the last message in the session."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                "SELECT created_at FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+            if not row or not row["created_at"]:
+                return None
+            try:
+                dt = datetime.fromisoformat(row["created_at"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except Exception:
+                return None
+        finally:
+            conn.close()
+
+    def get_recent_exchanges(
+        self,
+        session_id: str,
+        n_exchanges: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Retrieve up to n_exchanges (user+assistant pairs) verbatim in chronological order.
+
+        1 exchange = 1 user message + 1 assistant message (up to 2*n_exchanges messages).
+        """
+        limit_messages = max(2, n_exchanges * 2)
+        return self.get_messages(session_id, limit=limit_messages)
+
+    def delete_last_exchange(self, session_id: str) -> int:
+        """Remove the last exchange (assistant + user messages) from history."""
+        conn = self._conn()
+        try:
+            with conn:
+                rows = conn.execute(
+                    "SELECT id FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 2",
+                    (session_id,),
+                ).fetchall()
+                if not rows:
+                    return 0
+                ids = [r["id"] for r in rows]
+                placeholders = ",".join("?" for _ in ids)
+                cursor = conn.execute(
+                    f"DELETE FROM messages WHERE id IN ({placeholders})",
+                    ids,
+                )
+                return cursor.rowcount
+        finally:
+            conn.close()
+
+    def clear_short_term_memory(self, session_id: str) -> int:
+        """Clear all messages for this session."""
+        conn = self._conn()
+        try:
+            with conn:
+                cursor = conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+                conn.execute("DELETE FROM conversation_summaries WHERE session_id = ?", (session_id,))
+                return cursor.rowcount
+        finally:
+            conn.close()
+
 
 # ---------------------------------------------------------------------------
 # Module-level singleton

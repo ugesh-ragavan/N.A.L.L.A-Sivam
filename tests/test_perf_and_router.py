@@ -109,6 +109,34 @@ class TestFastRouter:
         reply = route("unmute mic")
         assert reply is not None
 
+    def test_volume_controls(self):
+        reply_up = route("volume up")
+        assert reply_up is not None
+        assert "volume" in reply_up.lower() or "increased" in reply_up.lower()
+
+        reply_down = route("volume down")
+        assert reply_down is not None
+        assert "volume" in reply_down.lower() or "decreased" in reply_down.lower()
+
+        reply_set = route("set volume to 65%")
+        assert reply_set is not None
+        assert "65%" in reply_set
+
+        reply_mute = route("mute volume")
+        assert reply_mute is not None
+        assert "muted" in reply_mute.lower()
+
+    def test_device_commands(self):
+        # Relay 1 (Living Room Main Light) online
+        reply_on = route("turn on relay 1")
+        assert reply_on is not None
+        assert "Living Room Main Light switched on, boss." in reply_on
+
+        # Plug (esp32-plug-1) is offline in mock registry
+        reply_offline = route("turn on workbench smart plug")
+        assert reply_offline is not None
+        assert "offline" in reply_offline.lower()  # Honesty guard!
+
     def test_no_match_returns_none(self):
         assert route("tell me a story about dragons") is None
         assert route("what is MQTT") is None
@@ -151,6 +179,16 @@ class TestAgentHelpers:
             history.append({"role": "assistant", "content": f"reply {i}"})
         trimmed = _trim_history(history)
         assert trimmed[0]["role"] == "user"
+
+    def test_trim_history_summary_collapse(self):
+        history = []
+        for i in range(15):
+            history.append({"role": "user", "content": f"query topic {i}"})
+            history.append({"role": "assistant", "content": f"response {i}"})
+        trimmed = _trim_history(history)
+        assert len(trimmed) <= 16
+        assert "[Earlier conversation summary:" in trimmed[0]["content"]
+        assert trimmed[1]["role"] == "assistant"
 
     def test_trim_history_short_passthrough(self):
         history = [

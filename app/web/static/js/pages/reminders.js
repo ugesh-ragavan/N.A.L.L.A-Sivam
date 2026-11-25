@@ -44,7 +44,12 @@
       const reminders = await res.json();
 
       if (reminders.length === 0) {
-        listEl.innerHTML = `<div style="text-align:center; color:var(--text-dim); padding:40px;">No scheduled reminders or tasks.</div>`;
+        listEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">⏰</div>
+            <div class="empty-state-text">No scheduled reminders or tasks right now. Quick-add one above or use Ctrl+K.</div>
+          </div>
+        `;
         return;
       }
 

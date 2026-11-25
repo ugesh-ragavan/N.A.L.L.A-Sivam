@@ -67,3 +67,27 @@ This document records all third-party open-source code, algorithms, and design p
 - **Files Referenced:** `src/tools.py`
 - **Ported / Adapted Components:**
   - **Two-Phase Action Confirmation Pattern:** Conceptual inspiration for two-stage approval gate before executing state-changing device actions.
+
+---
+
+## 4. openWakeWord
+
+- **Originating Repository:** `dscripka/openWakeWord`
+- **License:** Apache License 2.0 (Copyright 2022-2023 David Scripka)
+- **Files Referenced:** `openwakeword/model.py`, `openwakeword/utils.py`
+- **Ported / Adapted Components:**
+  - **Pretrained ONNX Wake-Word Architecture:** Embedded `OpenWakeWordDetector` wrapper in `app/voice/wakeword.py` for continuous streaming ONNX acoustic classification with dynamic sensitivity thresholding.
+- **License Notice:**
+  ```text
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+  ```

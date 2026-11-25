@@ -51,7 +51,12 @@
     });
 
     if (filtered.length === 0) {
-      listEl.innerHTML = `<div style="text-align:center; color:var(--text-dim); padding:40px;">No activity events in this category.</div>`;
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-text">No activity events found in '${window.NallaApp.escapeHtml(currentFilter)}' category.</div>
+        </div>
+      `;
       return;
     }
 

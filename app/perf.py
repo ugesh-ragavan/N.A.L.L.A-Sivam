@@ -46,11 +46,20 @@ class TurnRecord:
     llm_total_ms: float = 0.0
     tool_calls_ms: float = 0.0
     tts_first_ms: float = 0.0
+    release_to_first_audio_ms: float = 0.0
     total_ms: float = 0.0
+    release_time: float | None = None
+    tts_engines: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["ts_human"] = time.strftime("%H:%M:%S", time.localtime(self.ts))
+        # Aliases for frontend debug waterfall compatibility
+        d["total_latency_ms"] = self.total_ms
+        d["stt_latency_ms"] = self.stt_ms
+        d["llm_first_token_ms"] = self.llm_first_ms
+        d["tts_first_audio_ms"] = self.tts_first_ms
+        d["user_utterance"] = self.user_text
         return d
 
 
@@ -81,30 +90,30 @@ class PerfTracker:
         if not recs:
             return "No turns recorded yet."
         hdr = (
-            f"{'ID':>3} {'User text':<30} {'FP':<4} "
+            f"{'ID':>3} {'User text':<26} {'FP':<4} "
             f"{'STT':>6} {'Mem':>5} {'Prompt':>7} "
             f"{'LLM1st':>7} {'LLMtot':>7} {'Tools':>6} "
-            f"{'TTS1st':>7} {'Total':>7}"
+            f"{'TTS1st':>7} {'Rel->Aud':>8} {'Total':>7}"
         )
         sep = "-" * len(hdr)
         rows = [hdr, sep]
         for r in recs:
             rows.append(
-                f"{r['turn_id']:>3} {r['user_text']:<30} {'Y' if r['fast_path'] else 'N':<4} "
+                f"{r['turn_id']:>3} {r['user_text']:<26} {'Y' if r['fast_path'] else 'N':<4} "
                 f"{r['stt_ms']:>6.0f} {r['memory_ms']:>5.0f} {r['prompt_build_ms']:>7.0f} "
                 f"{r['llm_first_ms']:>7.0f} {r['llm_total_ms']:>7.0f} {r['tool_calls_ms']:>6.0f} "
-                f"{r['tts_first_ms']:>7.0f} {r['total_ms']:>7.0f}"
+                f"{r['tts_first_ms']:>7.0f} {r.get('release_to_first_audio_ms', 0.0):>8.0f} {r['total_ms']:>7.0f}"
             )
         rows.append(sep)
         # Averages
         def avg(key: str) -> float:
-            vals = [r[key] for r in recs if r[key] > 0]
+            vals = [r.get(key, 0.0) for r in recs if r.get(key, 0.0) > 0]
             return sum(vals) / len(vals) if vals else 0.0
         rows.append(
-            f"{'AVG':>3} {'(ms across all turns)':<30} {'':<4} "
+            f"{'AVG':>3} {'(ms across turns)':<26} {'':<4} "
             f"{avg('stt_ms'):>6.0f} {avg('memory_ms'):>5.0f} {avg('prompt_build_ms'):>7.0f} "
             f"{avg('llm_first_ms'):>7.0f} {avg('llm_total_ms'):>7.0f} {avg('tool_calls_ms'):>6.0f} "
-            f"{avg('tts_first_ms'):>7.0f} {avg('total_ms'):>7.0f}"
+            f"{avg('tts_first_ms'):>7.0f} {avg('release_to_first_audio_ms'):>8.0f} {avg('total_ms'):>7.0f}"
         )
         return "\n".join(rows)
 

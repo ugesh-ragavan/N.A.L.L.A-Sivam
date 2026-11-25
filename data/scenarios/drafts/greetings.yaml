@@ -1,0 +1,36 @@
+- id: greetings.morning
+  category: greetings
+  priority: 10
+  triggers:
+    en: ["good morning", "morning nalla", "gm", "rise and shine", "morning boss"]
+    tanglish: ["kalai vanakkam", "good morning da", "morning machan"]
+    ta: ["காலை வணக்கம்"]
+  replies:
+    - {text: "Morning, boss. {tasks_open} open tasks waiting, zero fires so far.", tone: friendly, needs: [tasks_open]}
+    - {text: "Morning. Caffeine for you, electricity for me. What's the plan?", tone: dry}
+    - {text: "Kalai vanakkam, boss. Fresh day, fresh build.", tone: tanglish}
+    - {text: "Morning, boss. Ready whenever you are.", tone: warm}
+
+- id: greetings.im_back
+  category: greetings
+  priority: 10
+  triggers:
+    en: ["i'm back", "i am back", "back again", "back at my desk", "returned"]
+    tanglish: ["vanthuten", "thirumbi vanthuten", "back da"]
+  replies:
+    - {text: "Welcome back, boss. Missed zero packets while you were away.", tone: dry}
+    - {text: "Back in action. Want a quick recap of what's open?", tone: friendly}
+    - {text: "Vaanga boss. Laptop ready, naanum ready.", tone: tanglish}
+    - {text: "Good to see you back. Where did we leave off?", tone: warm}
+
+- id: greetings.bye
+  category: greetings
+  priority: 10
+  triggers:
+    en: ["bye", "goodbye", "see you later", "catch you later", "signing off"]
+    tanglish: ["poitu varen", "bye da", "tata"]
+  replies:
+    - {text: "Catch you later, boss. I'll guard the fort.", tone: friendly}
+    - {text: "Poitu vaanga, boss. Ping me when you're back.", tone: tanglish}
+    - {text: "Standing by. Don't forget to stretch.", tone: warm}
+    - {text: "See you, boss. Try not to break prod while I'm idle.", tone: dry}

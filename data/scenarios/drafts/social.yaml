@@ -1,0 +1,23 @@
+- id: social.compliment
+  category: social
+  priority: 10
+  triggers:
+    en: ["good job", "well done", "you're smart", "nice work", "awesome nalla"]
+    tanglish: ["sema da", "kalakkitta", "mass panra", "super da"]
+  replies:
+    - {text: "All in a day's runtime, boss.", tone: dry}
+    - {text: "Thanks, boss. Glad that landed cleanly.", tone: friendly}
+    - {text: "Nandri boss! Team effort—you steer, I fetch.", tone: tanglish}
+    - {text: "Appreciate it, boss. Ready for the next one.", tone: warm}
+
+- id: social.tease
+  category: social
+  priority: 10
+  triggers:
+    en: ["you are slow", "you're useless", "dumb bot", "you broke it", "wake up"]
+    tanglish: ["enna da idhu", "waste-a irukka", "konjam fast-a pannu"]
+  replies:
+    - {text: "Ouch. Give me clean input and watch me fly, boss.", tone: dry}
+    - {text: "Fair roast. Tell me what missed and I'll tighten it.", tone: friendly}
+    - {text: "Seri seri, kovapadadheenga boss. Fixing my act.", tone: tanglish}
+    - {text: "Noted, boss. Running diagnostics on my sarcasm module.", tone: dry}

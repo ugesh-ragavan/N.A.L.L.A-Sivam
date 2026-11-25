@@ -64,6 +64,10 @@ def _build_agent():
     threading.Thread(target=provider.warmup, daemon=True, name="GeminiWarmup").start()
     from app.voice.stt import stt_engine
     threading.Thread(target=stt_engine.warmup, daemon=True, name="WhisperWarmup").start()
+    from app.voice.tts import tts_engine
+    from app.voice.tts_cache import tts_audio_cache
+    if tts_engine:
+        tts_audio_cache.prewarm(tts_engine)
 
     return agent
 
@@ -206,15 +210,27 @@ def main() -> None:
     setup_logging()
     logger = logging.getLogger("nalla")
 
+    # Single-instance lock
+    from app.core.autostart import single_instance_lock
+    import atexit
+
+    try:
+        single_instance_lock.acquire()
+        atexit.register(single_instance_lock.release)
+    except RuntimeError as lock_err:
+        logger.warning("%s Exiting.", lock_err)
+        print(f"\n[ALERT] {lock_err}\n")
+        return
+
     args = sys.argv[1:]
 
     if not args:
-        # Phase 0 banner-only mode.
+        # Default to launching the full web dashboard
         _print_banner(logger)
-        logger.info("Initializing NALLA SIVAM...")
+        logger.info("Initializing NALLA SIVAM Web Dashboard...")
         logger.info("Model   : %s", GEMINI_MODEL)
-        logger.info("Dashboard bound to %s:%d", WEB_HOST, WEB_PORT)
-        logger.info("Phase 4 ready. Run `python -m app chat`, `python -m app voice`, or `python -m app dashboard`.")
+        from app.web.server import run_server
+        run_server()
         return
 
     if args[0] == "chat":

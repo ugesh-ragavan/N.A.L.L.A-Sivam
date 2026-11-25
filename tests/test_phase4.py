@@ -375,5 +375,5 @@ class TestVoiceWebAPI:
         client = TestClient(app)
         res = client.get("/")
         assert res.status_code == 200
-        assert "Live Voice Loop (Phase 4)" in res.text
-        assert "Push-To-Talk" in res.text
+        assert "NALLA SIVAM" in res.text
+        assert "HOLD TO TALK" in res.text

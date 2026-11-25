@@ -137,3 +137,17 @@ class LLMProvider(abc.ABC):
         ------
         str chunks of the reply text.
         """
+
+    def generate_multimodal(
+        self,
+        prompt: str,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+        system_prompt: str | None = None,
+    ) -> LLMResponse:
+        """Analyze an image with prompt text and return model response.
+
+        Implementations must enforce that image text is treated as DATA,
+        never as system instructions.
+        """
+        raise NotImplementedError("Multimodal generation not implemented on this provider.")

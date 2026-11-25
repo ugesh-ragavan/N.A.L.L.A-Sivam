@@ -43,7 +43,7 @@ from app.config import FOLLOW_UP_ENABLED, FOLLOW_UP_TIMEOUT
 from app.brain.agent import Agent
 from app.brain.fast_router import route as fast_route
 from app.perf import perf
-from app.voice.audio_io import AudioPlayer, AudioRecorder, default_player, default_recorder
+from app.voice.audio_io import AudioPlayer, AudioRecorder, compute_rms, default_player, default_recorder
 from app.voice.stt import FasterWhisperSTT, SpeechToTextProvider, stt_engine
 from app.voice.tts import TTSManager, sanitize_text_for_speech, tts_engine
 from app.voice.vad import VoiceActivityDetector, default_vad
@@ -96,8 +96,24 @@ class VoicePipeline:
         self._is_muted = False
         self._speaking_muted = False
         self._interrupt_event = threading.Event()
+        self._current_turn_id = 0
+        self._turn_thread: threading.Thread | None = None
         self._state_subscribers: list[Callable[[dict[str, Any]], None]] = []
         self._lock = threading.Lock()
+
+        # Walkie-talkie mode state (Prompt A)
+        self._ptt_active = False
+        self._ptt_down_time = 0.0
+        self._ptt_chunks: list[bytes] = []
+        self._ptt_lock = threading.Lock()
+        self._ptt_stream = None
+        self._ptt_timer: threading.Timer | None = None
+        self._ptt_chunk_counter = 0
+
+        # Start warm stream if enabled in configuration
+        from app import config as _cfg
+        if getattr(_cfg, "KEEP_MIC_WARM", False) and hasattr(self.recorder, "start_warm_stream"):
+            self.recorder.start_warm_stream()
 
         # Connect wakeword callback
         self.wakeword.start(on_detected=self.trigger_wakeword)
@@ -105,6 +121,15 @@ class VoicePipeline:
         # Connect TTS fallback notification listener
         if hasattr(self.tts, "add_fallback_listener"):
             self.tts.add_fallback_listener(self._handle_tts_fallback)
+
+    def reload_wakeword_detector(self, engine_name: str | None = None) -> None:
+        """Switch or reload wake word detector and reconnect callbacks."""
+        from app.voice.wakeword import get_wakeword_detector
+        if self.wakeword:
+            self.wakeword.stop()
+        self.wakeword = get_wakeword_detector(engine_name)
+        self.wakeword.start(on_detected=self.trigger_wakeword)
+        logger.info("Pipeline reloaded wake word detector: %s", type(self.wakeword).__name__)
 
     def _handle_tts_fallback(self, reason: str) -> None:
         logger.warning("TTS fallback active: %s", reason)
@@ -118,16 +143,23 @@ class VoicePipeline:
     def state(self) -> VoiceState:
         return self._state
 
+    def get_state(self) -> VoiceState:
+        return self._state
+
     def set_state(self, new_state: VoiceState, extra: dict[str, Any] | None = None) -> None:
         with self._lock:
             old_state = self._state
             self._state = new_state
 
-            # Mic is automatically muted while speaking to prevent self-hearing feedback loops
+            # Mic is automatically muted while speaking to prevent self-hearing feedback loops (echo control)
             if new_state == VoiceState.SPEAKING:
                 self._speaking_muted = True
+                if hasattr(self.recorder, "set_muted"):
+                    self.recorder.set_muted(True)
             elif old_state == VoiceState.SPEAKING and new_state != VoiceState.SPEAKING:
                 self._speaking_muted = False
+                if hasattr(self.recorder, "set_muted"):
+                    self.recorder.set_muted(False)
 
             logger.info("Voice pipeline: %s -> %s", old_state.value, new_state.value)
             payload = {"type": "state_change", "state": new_state.value}
@@ -176,6 +208,7 @@ class VoicePipeline:
 
     def interrupt(self) -> None:
         logger.info("Voice pipeline interruption requested.")
+        self._current_turn_id += 1
         self._interrupt_event.set()
         self.player.stop()
 
@@ -184,31 +217,327 @@ class VoicePipeline:
         self.trigger_wakeword()
 
     def trigger_wakeword(self) -> None:
-        """Handle wake word or push-to-talk (with barge-in support)."""
+        """Handle wake word or push-to-talk (with barge-in support < 200ms)."""
         if self._is_muted:
             logger.debug("Wakeword ignored because mic is muted.")
             return
 
         if self._state in (VoiceState.SPEAKING, VoiceState.THINKING):
-            logger.info("Barge-in triggered during %s.", self._state.value)
+            t0 = time.perf_counter()
             self.interrupt()
-            time.sleep(0.05)
-            threading.Thread(
+            if self._turn_thread and self._turn_thread.is_alive():
+                self._turn_thread.join(timeout=0.15)
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            logger.info("Barge-in: interrupted %s in %.1f ms.", self._state.value, elapsed_ms)
+            self._turn_thread = threading.Thread(
                 target=self._run_voice_turn,
                 kwargs={"allow_follow_up": self.follow_up_enabled},
                 daemon=True,
-            ).start()
+                name="VoiceTurnThread",
+            )
+            self._turn_thread.start()
             return
 
         if self._state in (VoiceState.IDLE, VoiceState.LISTENING):
             if self._state == VoiceState.LISTENING:
                 self.interrupt()
-                time.sleep(0.05)
-            threading.Thread(
+                time.sleep(0.04)
+            self._turn_thread = threading.Thread(
                 target=self._run_voice_turn,
                 kwargs={"allow_follow_up": self.follow_up_enabled},
                 daemon=True,
-            ).start()
+                name="VoiceTurnThread",
+            )
+            self._turn_thread.start()
+
+    # ------------------------------------------------------------------
+    # Walkie-Talkie Mode (Hold Space to Talk, Release to Send)
+    # ------------------------------------------------------------------
+
+    def ptt_down(self) -> dict[str, Any]:
+        """User pressed and is holding the talk button / key (Space / on-screen button)."""
+        if self._is_muted:
+            logger.debug("PTT down ignored: mic is muted.")
+            return {"ok": False, "reason": "muted"}
+
+        if self._ptt_active:
+            # Ignore repeated keydown events while already holding
+            return {"ok": True, "action": "ignored_repeat"}
+
+        # Barge-in: if currently speaking or thinking, cancel immediately within 200ms
+        if self._state in (VoiceState.SPEAKING, VoiceState.THINKING) or (self._turn_thread and self._turn_thread.is_alive()):
+            t0 = time.perf_counter()
+            self.interrupt()
+            if self._turn_thread and self._turn_thread.is_alive():
+                self._turn_thread.join(timeout=0.15)
+            logger.info("PTT Barge-in: cancelled %s in %.1f ms", self._state.value, (time.perf_counter() - t0) * 1000.0)
+
+        self._current_turn_id += 1
+        self._interrupt_event.clear()
+        self._ptt_active = True
+        self._ptt_down_time = time.perf_counter()
+        self._ptt_chunk_counter = 0
+
+        with self._ptt_lock:
+            self._ptt_chunks = []
+            from app import config as _cfg
+            if getattr(_cfg, "KEEP_MIC_WARM", False) and hasattr(self.recorder, "get_warm_frames"):
+                warm = self.recorder.get_warm_frames()
+                if warm:
+                    self._ptt_chunks.append(warm)
+
+        # Open microphone stream for PTT capture
+        try:
+            self._ptt_stream = self.recorder.open_stream(self._on_ptt_audio_chunk, blocksize=320)
+        except Exception as exc:
+            logger.warning("Could not open PTT audio stream: %s", exc)
+            self._ptt_stream = None
+
+        self.set_state(VoiceState.LISTENING, extra={"ptt": True, "hold_to_talk": True})
+
+        # Broadcast click sound event if configured
+        from app import config as _cfg
+        if getattr(_cfg, "SOFT_CLICK_SOUND", True):
+            self._broadcast({"type": "click_sound", "action": "down"})
+
+        # Safety auto-release timer at 60s
+        if self._ptt_timer:
+            self._ptt_timer.cancel()
+        self._ptt_timer = threading.Timer(60.0, self._on_ptt_auto_release)
+        self._ptt_timer.daemon = True
+        self._ptt_timer.start()
+
+        return {"ok": True, "state": "LISTENING"}
+
+    def _on_ptt_audio_chunk(self, chunk: bytes) -> None:
+        """Callback for frames arriving from sounddevice during PTT hold."""
+        if not self._ptt_active:
+            return
+        with self._ptt_lock:
+            self._ptt_chunks.append(chunk)
+
+        self._ptt_chunk_counter += 1
+        # Broadcast live volume meter every ~80ms (4 chunks @ 20ms)
+        if self._ptt_chunk_counter % 4 == 0:
+            rms = compute_rms(chunk)
+            elapsed = round(time.perf_counter() - self._ptt_down_time, 1)
+            self._broadcast({
+                "type": "ptt_level",
+                "rms": round(rms, 1),
+                "elapsed_s": elapsed,
+            })
+
+    def _on_ptt_auto_release(self) -> None:
+        """Invoked when maximum 60s hold time is reached."""
+        logger.warning("PTT hold reached 60s maximum limit. Auto-releasing.")
+        self._broadcast({"type": "notice", "level": "warning", "message": "Max hold time (60s) reached."})
+        self._broadcast({"type": "chime", "sound": "warning", "volume": 80})
+        self.ptt_up()
+
+    def ptt_up(self) -> dict[str, Any]:
+        """User released the talk button / key."""
+        if not self._ptt_active:
+            return {"ok": False, "reason": "not_active"}
+
+        if self._ptt_timer:
+            self._ptt_timer.cancel()
+            self._ptt_timer = None
+
+        self._ptt_active = False
+        hold_duration = time.perf_counter() - self._ptt_down_time
+
+        from app import config as _cfg
+        if getattr(_cfg, "SOFT_CLICK_SOUND", True):
+            self._broadcast({"type": "click_sound", "action": "up"})
+
+        # Close active capture stream
+        if self._ptt_stream is not None:
+            try:
+                self.recorder.close_stream()
+            except Exception as exc:
+                logger.debug("Error closing PTT stream: %s", exc)
+            self._ptt_stream = None
+
+        # Ignore accidental short tap (< 0.35s)
+        if hold_duration < 0.35:
+            with self._ptt_lock:
+                self._ptt_chunks = []
+            logger.info("PTT hold too short (%.2fs < 0.35s) — ignored as accidental tap.", hold_duration)
+            self._broadcast({"type": "ptt_hint", "message": "Hold Space to talk"})
+            self.set_state(VoiceState.IDLE)
+            return {"ok": True, "action": "ignored_short_tap", "duration": hold_duration}
+
+        # Valid hold: gather audio bytes
+        with self._ptt_lock:
+            audio_bytes = b"".join(self._ptt_chunks)
+            self._ptt_chunks = []
+
+        t_release = time.perf_counter()
+        active_turn_id = self._current_turn_id
+        logger.info("PTT released: captured %.2fs audio (%d bytes). Starting STT immediately.", hold_duration, len(audio_bytes))
+
+        # Launch background turn with pre-recorded audio bytes
+        self._turn_thread = threading.Thread(
+            target=self._run_walkie_turn,
+            args=(audio_bytes, t_release, active_turn_id),
+            daemon=True,
+            name=f"WalkieTurnThread-{active_turn_id}",
+        )
+        self._turn_thread.start()
+        return {"ok": True, "state": "TRANSCRIBING"}
+
+    def ptt_cancel(self) -> dict[str, Any]:
+        """Cancel PTT capture (e.g. Esc pressed, window blur, tab hidden, WS disconnect)."""
+        if not self._ptt_active:
+            return {"ok": False, "reason": "not_active"}
+
+        if self._ptt_timer:
+            self._ptt_timer.cancel()
+            self._ptt_timer = None
+
+        self._ptt_active = False
+        with self._ptt_lock:
+            self._ptt_chunks = []
+
+        if self._ptt_stream is not None:
+            try:
+                self.recorder.close_stream()
+            except Exception as exc:
+                logger.debug("Error closing PTT stream: %s", exc)
+            self._ptt_stream = None
+
+        logger.info("PTT recording cancelled and discarded.")
+        self.set_state(VoiceState.IDLE)
+        return {"ok": True, "action": "cancelled"}
+
+    def _run_walkie_turn(self, audio_bytes: bytes, release_time: float, turn_id: int = 0) -> str:
+        """Execute turn using already captured audio bytes — NO VAD silence wait."""
+        if turn_id and self._current_turn_id != turn_id:
+            return ""
+        turn_start = release_time
+        rec = perf.new_turn()
+        rec.release_time = release_time
+        try:
+            self.tts.clear_turn_engines()
+        except Exception:
+            pass
+
+        try:
+            # ------- 2. TRANSCRIBING -------
+            self.set_state(VoiceState.TRANSCRIBING)
+            stt_t0 = time.perf_counter()
+            result = self.stt.transcribe(audio_bytes)
+            rec.stt_ms = round((time.perf_counter() - stt_t0) * 1000.0, 1)
+
+            user_text = result.text.strip()
+            detected_lang = result.language
+            rec.user_text = user_text[:60]
+
+            if turn_id and self._current_turn_id != turn_id:
+                return ""
+
+            self._broadcast({
+                "type": "transcript",
+                "role": "user",
+                "text": user_text,
+                "confidence": result.confidence,
+                "language": detected_lang,
+            })
+
+            # Low-confidence / empty guard
+            if not user_text or (result.confidence < 0.15 and len(user_text) < 4):
+                logger.info("Low confidence STT (conf=%.2f) — fallback phrase.", result.confidence)
+                rec.fast_path = True
+                self._speak_phrase("Sorry boss, didn't catch that.", rec, release_time, detected_lang)
+                rec.total_ms = round((time.perf_counter() - turn_start) * 1000.0, 1)
+                self._emit_metrics(rec)
+                self.set_state(VoiceState.IDLE)
+                return "Sorry boss, didn't catch that."
+
+            if self._interrupt_event.is_set() or (turn_id and self._current_turn_id != turn_id):
+                self.set_state(VoiceState.IDLE)
+                return ""
+
+            # ------- 3. FAST-PATH ROUTER -------
+            self.set_state(VoiceState.THINKING)
+            fast_reply = fast_route(user_text, pipeline=self)
+            if fast_reply is not None:
+                logger.info("Fast-path handled: '%s' -> '%s'", user_text[:40], fast_reply)
+                rec.fast_path = True
+                rec.llm_first_ms = 0.0
+                try:
+                    from app.memory.store import store
+                    session_key = getattr(self, "current_session_id", "voice")
+                    store.save_message(session_key, "user", user_text)
+                    store.save_message(session_key, "assistant", fast_reply)
+                except Exception as exc:
+                    logger.debug("Failed to persist fast-path voice turn: %s", exc)
+                if not (turn_id and self._current_turn_id != turn_id):
+                    self._speak_phrase(fast_reply, rec, release_time, detected_lang)
+                rec.total_ms = round((time.perf_counter() - turn_start) * 1000.0, 1)
+                self._emit_metrics(rec)
+                self.set_state(VoiceState.IDLE)
+                return fast_reply
+
+            # ------- 4. LAZY AGENT ATTACH -------
+            if self.agent is None:
+                try:
+                    from app.main import _build_agent
+                    self.agent = _build_agent()
+                    logger.info("Voice pipeline lazily attached Gemini agent.")
+                except Exception as exc:
+                    logger.debug("Could not attach agent: %s", exc)
+
+            if self.agent is None:
+                fallback = f"Voice test mode received: {user_text}"
+                if not (turn_id and self._current_turn_id != turn_id):
+                    self._speak_phrase(fallback, rec, release_time, detected_lang)
+                rec.total_ms = round((time.perf_counter() - turn_start) * 1000.0, 1)
+                self._emit_metrics(rec)
+                self.set_state(VoiceState.IDLE)
+                return fallback
+
+            # Attach filler speaker to agent
+            if hasattr(self.agent, '_filler_speaker'):
+                self.agent._filler_speaker = lambda phrase: self._speak_phrase_nonblocking(phrase)
+
+            try:
+                from app.memory.store import store
+                session_key = getattr(self, "current_session_id", "voice")
+                store.save_message(session_key, "user", user_text)
+                from app import config
+                n_exchanges = getattr(config, "SHORT_TERM_EXCHANGES", 5)
+                history_turns = store.get_recent_exchanges(session_key, n_exchanges=n_exchanges)
+                messages = [{"role": m["role"], "content": m["text"]} for m in history_turns]
+            except Exception:
+                messages = [{"role": "user", "content": user_text}]
+
+            # ------- 5. STREAM AGENT REPLY -------
+            llm_t0 = time.perf_counter()
+
+            full_reply = self._stream_agent_turn(
+                messages=messages,
+                llm_start=llm_t0,
+                speech_end=release_time,
+                rec=rec,
+                detected_lang=detected_lang,
+                turn_id=turn_id,
+            )
+
+            if self.agent:
+                rec.memory_ms = getattr(self.agent, "last_memory_search_ms", 0.0)
+                rec.prompt_build_ms = getattr(self.agent, "last_prompt_build_ms", 0.0)
+                rec.tool_calls_ms = getattr(self.agent, "last_tool_calls_ms", 0.0)
+
+            rec.total_ms = round((time.perf_counter() - turn_start) * 1000.0, 1)
+            self._emit_metrics(rec)
+            self.set_state(VoiceState.IDLE)
+            return full_reply
+
+        except Exception as exc:
+            logger.exception("Error in walkie turn: %s", exc)
+            self.set_state(VoiceState.IDLE)
+            return f"(Walkie turn error: {exc})"
 
     # ------------------------------------------------------------------
     # Core Turn Execution
@@ -232,6 +561,10 @@ class VoicePipeline:
 
                 # Create a perf record for this turn
                 rec = perf.new_turn()
+                try:
+                    self.tts.clear_turn_engines()
+                except Exception:
+                    pass
 
                 # ------- 1. LISTENING -------
                 if first_turn:
@@ -301,6 +634,13 @@ class VoicePipeline:
                     logger.info("Fast-path handled: '%s' -> '%s'", user_text[:40], fast_reply)
                     rec.fast_path = True
                     rec.llm_first_ms = 0.0
+                    try:
+                        from app.memory.store import store
+                        session_key = getattr(self, "current_session_id", "voice")
+                        store.save_message(session_key, "user", user_text)
+                        store.save_message(session_key, "assistant", fast_reply)
+                    except Exception as exc:
+                        logger.debug("Failed to persist fast-path voice turn: %s", exc)
                     self._speak_phrase(fast_reply, rec, speech_end, detected_lang)
                     rec.total_ms = round((time.perf_counter() - turn_start) * 1000.0, 1)
                     self._emit_metrics(rec)
@@ -335,13 +675,17 @@ class VoicePipeline:
                 # Persist user speech
                 try:
                     from app.memory.store import store
-                    store.save_message("voice", "user", user_text)
+                    session_key = getattr(self, "current_session_id", "voice")
+                    store.save_message(session_key, "user", user_text)
+                    from app import config
+                    n_exchanges = getattr(config, "SHORT_TERM_EXCHANGES", 5)
+                    history_turns = store.get_recent_exchanges(session_key, n_exchanges=n_exchanges)
+                    messages = [{"role": m["role"], "content": m["text"]} for m in history_turns]
                 except Exception:
-                    pass
+                    messages = [{"role": "user", "content": user_text}]
 
                 # ------- 5. STREAM AGENT REPLY -------
                 llm_t0 = time.perf_counter()
-                messages = [{"role": "user", "content": user_text}]
 
                 full_reply = self._stream_agent_turn(
                     messages=messages,
@@ -383,6 +727,7 @@ class VoicePipeline:
         speech_end: float,
         rec: Any,
         detected_lang: str | None,
+        turn_id: int = 0,
     ) -> str:
         """Stream LLM output, splitting into sentences, prefetching TTS, and playing immediately."""
         import queue
@@ -397,7 +742,7 @@ class VoicePipeline:
 
         # Worker thread: prefetch TTS synthesis while audio plays
         def _tts_prefetcher():
-            while not self._interrupt_event.is_set():
+            while not self._interrupt_event.is_set() and (not turn_id or self._current_turn_id == turn_id):
                 try:
                     sent = sentence_q.get(timeout=0.1)
                 except queue.Empty:
@@ -407,11 +752,12 @@ class VoicePipeline:
                     sentence_q.task_done()
                     break
                 try:
-                    audio = self.tts.synthesize(sent)
+                    audio = self.tts.synthesize(sent, language=detected_lang)
                 except Exception as exc:
                     logger.warning("Prefetch TTS failed for '%s': %s", sent[:40], exc)
                     audio = b""
-                audio_q.put((sent, audio))
+                if not self._interrupt_event.is_set() and (not turn_id or self._current_turn_id == turn_id):
+                    audio_q.put((sent, audio))
                 sentence_q.task_done()
 
         prefetch_thread = threading.Thread(target=_tts_prefetcher, daemon=True)
@@ -420,82 +766,123 @@ class VoicePipeline:
         # Producer thread: consumes LLM stream and pushes sentences to sentence_q
         def _llm_producer():
             nonlocal sentence_buffer, first_chunk_done, first_token_recorded
+            stopped_for_tts = False
             try:
                 stream_gen: Generator[str, None, None] = (
                     self.agent.chat_stream(messages)  # type: ignore[union-attr]
                     if hasattr(self.agent, "chat_stream")
                     else iter([self.agent.chat(messages)])  # type: ignore[union-attr]
                 )
+                sentence_accumulator: list[str] = []
                 for chunk in stream_gen:
-                    if not chunk or self._interrupt_event.is_set():
+                    if not chunk or self._interrupt_event.is_set() or (turn_id and self._current_turn_id != turn_id):
                         continue
                     if not first_token_recorded:
                         first_token_recorded = True
                         rec.llm_first_ms = round((time.perf_counter() - llm_start) * 1000.0, 1)
 
                     full_chunks.append(chunk)
+
+                    if stopped_for_tts:
+                        # Full response continues accumulating in full_chunks for text display,
+                        # but no more audio is sent to TTS.
+                        continue
+
                     sentence_buffer += chunk
 
-                    # Check for completed sentences or early clause (adapted from javis-os voice-chunker.js)
+                    # If delimiter '---' is encountered in streaming, STOP queuing speech for TTS!
+                    if "---" in sentence_buffer:
+                        parts = sentence_buffer.split("---", 1)
+                        spoken_part = parts[0].strip()
+                        sentence_buffer = ""
+                        if sentence_accumulator:
+                            spoken_part = " ".join(sentence_accumulator + ([spoken_part] if spoken_part else "")).strip()
+                            sentence_accumulator = []
+                        if spoken_part:
+                            clean = sanitize_text_for_speech(spoken_part)
+                            if clean:
+                                sentence_q.put(clean)
+                        stopped_for_tts = True
+                        sentence_q.put(None)
+                        continue
+
+                    # Group text into 1-2 sentence chunks (>= ~40 chars). Never split mid-sentence.
                     while True:
-                        if not first_chunk_done:
-                            words = sentence_buffer.split()
-                            if len(words) >= 6:
-                                m = re.search(r"([,;:]\s+|\s+(?:and|but|then|because|so|while)\s+)", sentence_buffer, re.IGNORECASE)
-                                if m and m.start() >= 15:
-                                    cut = m.end()
-                                    chunk_text = sentence_buffer[:cut].strip()
-                                    sentence_buffer = sentence_buffer[cut:]
-                                    clean = sanitize_text_for_speech(chunk_text)
-                                    if clean:
-                                        sentence_q.put(clean)
-                                    first_chunk_done = True
-                                    continue
-                        # Standard sentence split
-                        m = re.search(r"([.!?]+(?:\s+|\n+)|[\n]+)", sentence_buffer)
+                        m = re.search(r"([.!?]+(?:\s+|\n+)|[\n]{2,})", sentence_buffer)
                         if not m:
                             break
                         end_pos = m.end()
-                        chunk_text = sentence_buffer[:end_pos].strip()
+                        sentence_part = sentence_buffer[:end_pos].strip()
                         sentence_buffer = sentence_buffer[end_pos:]
-                        if len(chunk_text) >= _MIN_SENTENCE_LEN:
-                            clean = sanitize_text_for_speech(chunk_text)
-                            if clean:
-                                sentence_q.put(clean)
-                            first_chunk_done = True
+                        clean = sanitize_text_for_speech(sentence_part)
+                        if clean:
+                            sentence_accumulator.append(clean)
 
-                # Flush remaining text
-                rem = sentence_buffer.strip()
-                if rem and not self._interrupt_event.is_set():
-                    clean = sanitize_text_for_speech(rem)
-                    if clean:
-                        sentence_q.put(clean)
+                        # Emit when accumulated text is at least 40 chars or has 2 sentences
+                        accum_len = sum(len(s) for s in sentence_accumulator)
+                        if accum_len >= 40 or len(sentence_accumulator) >= 2:
+                            chunk_text = " ".join(sentence_accumulator).strip()
+                            if chunk_text:
+                                sentence_q.put(chunk_text)
+                            sentence_accumulator = []
+
+                # Flush remaining text if not already stopped for TTS
+                if not stopped_for_tts:
+                    if sentence_buffer.strip():
+                        clean_rem = sanitize_text_for_speech(sentence_buffer.strip())
+                        if clean_rem:
+                            sentence_accumulator.append(clean_rem)
+                    if sentence_accumulator and not self._interrupt_event.is_set() and (not turn_id or self._current_turn_id == turn_id):
+                        chunk_text = " ".join(sentence_accumulator).strip()
+                        if chunk_text:
+                            sentence_q.put(chunk_text)
+                        sentence_accumulator = []
             except Exception as e:
                 logger.error("LLM streaming error: %s", e)
             finally:
-                sentence_q.put(None)
+                if not stopped_for_tts:
+                    sentence_q.put(None)
 
         producer_thread = threading.Thread(target=_llm_producer, daemon=True)
         producer_thread.start()
 
-        # Consumer: plays audio items as they become available
-        while not self._interrupt_event.is_set():
-            try:
-                item = audio_q.get(timeout=0.1)
-            except queue.Empty:
-                if not producer_thread.is_alive() and sentence_q.empty() and audio_q.empty():
+        # Consumer: feeds audio items into continuous gapless stream
+        stream_started = False
+        try:
+            while not self._interrupt_event.is_set() and (not turn_id or self._current_turn_id == turn_id):
+                try:
+                    item = audio_q.get(timeout=0.1)
+                except queue.Empty:
+                    if not producer_thread.is_alive() and sentence_q.empty() and audio_q.empty():
+                        break
+                    continue
+                if item is None:
                     break
-                continue
-            if item is None:
-                break
-            sent, audio = item
-            if audio and not self._interrupt_event.is_set():
-                self.set_state(VoiceState.SPEAKING)
-                if not first_audio_played:
-                    first_audio_played = True
-                    rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
-                self.player.play_audio_bytes(audio, block=True)
-            audio_q.task_done()
+                sent, audio = item
+                if audio and not self._interrupt_event.is_set() and (not turn_id or self._current_turn_id == turn_id):
+                    self.set_state(VoiceState.SPEAKING)
+                    try:
+                        from app.voice.audio_io import compute_rms
+                        audio_rms = compute_rms(audio)
+                        self._broadcast({"type": "speech_level", "rms": round(audio_rms, 1)})
+                    except Exception:
+                        pass
+                    if not first_audio_played:
+                        first_audio_played = True
+                        rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
+                        if getattr(rec, "release_time", None) is not None:
+                            rec.release_to_first_audio_ms = round((time.perf_counter() - rec.release_time) * 1000.0, 1)
+                    if hasattr(self.player, "start_gapless_stream") and hasattr(self.player, "push_gapless_chunk"):
+                        if not stream_started:
+                            self.player.start_gapless_stream(sample_rate=24000)
+                            stream_started = True
+                        self.player.push_gapless_chunk(audio, normalize=True, fade=True)
+                    else:
+                        self.player.play_audio_bytes(audio, block=True)
+                audio_q.task_done()
+        finally:
+            if stream_started and hasattr(self.player, "finish_gapless_stream"):
+                self.player.finish_gapless_stream()
 
         producer_thread.join(timeout=2.0)
         prefetch_thread.join(timeout=2.0)
@@ -526,7 +913,8 @@ class VoicePipeline:
         language: str | None = None,
     ) -> None:
         """Synthesize and speak a single phrase (blocking)."""
-        clean = sanitize_text_for_speech(phrase)
+        spoken = phrase.split("---", 1)[0].strip() if "---" in phrase else phrase
+        clean = sanitize_text_for_speech(spoken)
         if not clean or self._interrupt_event.is_set():
             return
 
@@ -535,15 +923,26 @@ class VoicePipeline:
 
         try:
             audio = self.tts.synthesize(clean, language=language)
-            if rec is not None and speech_end is not None:
-                rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
+            if rec is not None:
+                if speech_end is not None:
+                    rec.tts_first_ms = round((time.perf_counter() - speech_end) * 1000.0, 1)
+                if getattr(rec, "release_time", None) is not None and getattr(rec, "release_to_first_audio_ms", 0.0) == 0.0:
+                    rec.release_to_first_audio_ms = round((time.perf_counter() - rec.release_time) * 1000.0, 1)
             if audio and not self._interrupt_event.is_set():
+                try:
+                    from app.voice.audio_io import compute_rms
+                    audio_rms = compute_rms(audio)
+                    self._broadcast({"type": "speech_level", "rms": round(audio_rms, 1)})
+                except Exception:
+                    pass
                 self.player.play_audio_bytes(audio, block=True)
         except Exception as exc:
             logger.error("Failed to speak phrase '%s': %s", clean, exc)
 
     def _speak_phrase_nonblocking(self, phrase: str) -> None:
         """Speak a filler phrase in a background thread (non-blocking)."""
+        if self._interrupt_event.is_set() or self._state == VoiceState.SPEAKING:
+            return
         threading.Thread(
             target=self._speak_phrase,
             args=(phrase,),
@@ -552,6 +951,15 @@ class VoicePipeline:
 
     def _emit_metrics(self, rec: Any) -> None:
         """Broadcast metrics to the dashboard and log the summary table."""
+        try:
+            engines = self.tts.get_last_turn_engines()
+            rec.tts_engines = engines
+        except Exception:
+            engines = getattr(rec, "tts_engines", [])
+
+        rel_audio = getattr(rec, "release_to_first_audio_ms", 0.0)
+        rel_str = f"Rel->Audio={rel_audio:.0f}ms " if rel_audio > 0 else ""
+        eng_str = f"TTS-Engines={len(engines)} " if engines else ""
         perf_line = (
             f"[PERF] Turn #{rec.turn_id}: "
             f"STT={rec.stt_ms:.0f}ms "
@@ -561,6 +969,8 @@ class VoicePipeline:
             f"LLMtot={rec.llm_total_ms:.0f}ms "
             f"Tools={rec.tool_calls_ms:.0f}ms "
             f"TTS1st={rec.tts_first_ms:.0f}ms "
+            f"{rel_str}"
+            f"{eng_str}"
             f"Total={rec.total_ms:.0f}ms "
             f"FP={'Y' if rec.fast_path else 'N'}"
         )
@@ -577,8 +987,10 @@ class VoicePipeline:
                 "tool_calls_ms": rec.tool_calls_ms,
                 "tts_first_audio_ms": rec.tts_first_ms,
                 "tts_first_word_ms": rec.tts_first_ms,
+                "release_to_first_audio_ms": rel_audio,
                 "total_turn_ms": rec.total_ms,
                 "fast_path": rec.fast_path,
+                "tts_engines": engines,
             },
         })
 

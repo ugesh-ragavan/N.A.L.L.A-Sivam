@@ -1,0 +1,154 @@
+{
+  "ratings": [
+    {
+      "line_id": 1,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Too robotic",
+      "timestamp": "2026-11-24T14:22:51Z"
+    },
+    {
+      "line_id": 1,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Cool, natural tone",
+      "timestamp": "2026-11-24T14:22:51Z"
+    },
+    {
+      "line_id": 2,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 3,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 4,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 5,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 6,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 7,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 8,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 9,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 10,
+      "setting": "A",
+      "rating": "bad",
+      "feedback": "Robotic, formal tone, no pauses",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 2,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 3,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 4,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 5,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 6,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 7,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 8,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 9,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    },
+    {
+      "line_id": 10,
+      "setting": "B",
+      "rating": "good",
+      "feedback": "Natural spoken rhythm, conversational wit, smooth audio",
+      "timestamp": "2026-11-23T15:42:28Z"
+    }
+  ],
+  "summary": {
+    "total_ratings": 20,
+    "setting_a_good": 0,
+    "setting_a_ok": 0,
+    "setting_a_bad": 10,
+    "setting_b_good": 10,
+    "setting_b_ok": 0,
+    "setting_b_bad": 0,
+    "preference_b_rate": 100.0
+  }
+}

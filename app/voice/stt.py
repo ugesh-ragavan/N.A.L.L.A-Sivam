@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from app.config import BASE_DIR, WHISPER_BEAM_SIZE, WHISPER_LANGUAGE, WHISPER_MODEL
+from app.config import BASE_DIR, LISTEN_LANGUAGES, WHISPER_BEAM_SIZE, WHISPER_LANGUAGE, WHISPER_MODEL
 
 logger = logging.getLogger("nalla.voice.stt")
 
@@ -67,6 +67,7 @@ class SpeechToTextProvider(ABC):
         self,
         audio_bytes: bytes,
         language: str | None = None,
+        listen_languages: list[str] | None = None,
     ) -> STTResult:
         """Transcribe PCM16 16kHz audio bytes to text."""
         ...
@@ -123,19 +124,22 @@ class FasterWhisperSTT(SpeechToTextProvider):
         """Lazy loader for WhisperModel to prevent startup lag."""
         if self._model is None:
             from faster_whisper import WhisperModel
+            import os
             self.download_root.mkdir(parents=True, exist_ok=True)
             compute_type = _resolve_compute_type(device="cpu", requested="int8")
+            threads = min(8, max(2, (os.cpu_count() or 4) - 1))
             logger.info(
-                "Loading faster-whisper '%s' model (%s on CPU)...",
+                "Loading faster-whisper '%s' model (%s on CPU with %d threads)...",
                 self.model_size,
                 compute_type,
+                threads,
             )
             self._model = WhisperModel(
                 self.model_size,
                 device="cpu",
                 compute_type=compute_type,
                 download_root=str(self.download_root),
-                cpu_threads=4,
+                cpu_threads=threads,
             )
             logger.info("Whisper model loaded successfully.")
         return self._model
@@ -144,10 +148,25 @@ class FasterWhisperSTT(SpeechToTextProvider):
         self,
         audio_bytes: bytes,
         language: str | None = None,
+        listen_languages: list[str] | None = None,
     ) -> STTResult:
-        """Transcribe 16 kHz 16-bit PCM mono audio bytes."""
+        """Transcribe 16 kHz 16-bit PCM mono audio bytes.
+
+        Args:
+            audio_bytes: Raw PCM audio.
+            language: Override language hint (single ISO code or ``"auto"``).
+            listen_languages: Allowlist of ISO codes (e.g. ``["en", "ta"]``).
+                If Whisper detects a language *not* in this list the result is
+                treated as empty so the pipeline stays silent instead of
+                transcribing gibberish.  Pass ``None`` or ``[]`` to skip the
+                filter (unrestricted auto-detect).
+        """
         if not audio_bytes:
             return STTResult(text="", confidence=0.0, language=self.language or "auto")
+
+        # Resolve effective allowlist: caller > config default
+        from app import config as _cfg
+        allowed: list[str] = listen_languages if listen_languages is not None else _cfg.LISTEN_LANGUAGES
 
         try:
             model = self._get_model()
@@ -155,14 +174,22 @@ class FasterWhisperSTT(SpeechToTextProvider):
             # Convert 16-bit PCM to float32 array in range [-1.0, 1.0]
             audio_array = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
-            lang = language or self.language
-            lang_param = None if lang in ("auto", "", None) else lang
+            # When exactly one language is in the allowlist, pin Whisper to it
+            # (faster). When multiple, let Whisper auto-detect and filter after.
+            if len(allowed) == 1 and allowed[0] not in ("auto", ""):
+                lang_param: str | None = allowed[0]
+            else:
+                lang = language or self.language
+                lang_param = None if lang in ("auto", "", None) else lang
 
             segments, info = model.transcribe(
                 audio_array,
                 language=lang_param,
                 beam_size=self.beam_size,
-                vad_filter=False,
+                best_of=1,
+                temperature=0.0,
+                condition_on_previous_text=False,
+                vad_filter=True,
             )
 
             text_parts = []
@@ -183,6 +210,34 @@ class FasterWhisperSTT(SpeechToTextProvider):
 
             detected_lang = getattr(info, "language", lang_param or "en")
             duration = getattr(info, "duration", len(audio_bytes) / 32000.0)
+
+            # Smart language reconciliation:
+            # Whisper's language classifier on short Indian-accented clips often labels
+            # English speech as 'hi', 'ur', 'te', etc. If the transcribed text is in Latin
+            # script and English is in the allowed languages, it IS English/Tanglish.
+            has_latin = bool(re.search(r"[a-zA-Z]", cleaned_text))
+            has_tamil = bool(re.search(r"[\u0B80-\u0BFF]", cleaned_text))
+
+            if has_latin and ("en" in allowed or "auto" in allowed):
+                detected_lang = "en"
+            elif has_tamil and ("ta" in allowed or "auto" in allowed):
+                detected_lang = "ta"
+            elif detected_lang in ("hi", "ur", "te", "kn", "ml", "mr", "gu", "pa", "bn") and ("en" in allowed or "ta" in allowed):
+                # Indian subcontinent acoustic phonetics — default to English if Latin letters present
+                detected_lang = "en" if has_latin else ("ta" if has_tamil else detected_lang)
+
+            # Language allowlist filter: only reject if the detected language is truly outside
+            # the allowed set AND the text does not contain valid allowed script characters.
+            if allowed and allowed != ["auto"] and detected_lang not in allowed:
+                # Do not reject if valid English or Tamil words were recognized
+                if not (("en" in allowed and has_latin) or ("ta" in allowed and has_tamil)):
+                    logger.info(
+                        "STT rejected: detected '%s' not in allowed languages %s — discarding '%s'",
+                        detected_lang,
+                        allowed,
+                        cleaned_text[:40],
+                    )
+                    return STTResult(text="", confidence=0.0, language=detected_lang, duration=duration)
 
             logger.info(
                 "STT transcribed: '%s' (lang: %s, conf: %.2f)",

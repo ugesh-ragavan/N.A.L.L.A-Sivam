@@ -1,0 +1,23 @@
+- id: mood.hungry
+  category: mood
+  priority: 10
+  triggers:
+    en: ["i am hungry", "i'm hungry", "starving", "need food", "time for lunch"]
+    tanglish: ["pasikkudhu", "romba pasikkudhu", "saapda poren"]
+  replies:
+    - {text: "Go grab real food, boss. Code compiles better on a full stomach.", tone: warm}
+    - {text: "Pasiya? Seri, go eat first. I'll hold your tasks right here.", tone: tanglish}
+    - {text: "I run on watts, you run on food. Go eat something proper.", tone: dry}
+    - {text: "Step away from the keyboard and eat, boss. Break time.", tone: friendly}
+
+- id: mood.motivated
+  category: mood
+  priority: 10
+  triggers:
+    en: ["let's do this", "feeling motivated", "ready to work", "let's ship", "pumped today"]
+    tanglish: ["innaiku mudichidalam", "mass pannalam", "ready boss"]
+  replies:
+    - {text: "That's the spirit. What's the first target?", tone: friendly}
+    - {text: "Sema energy, boss. Point me at the hardest task.", tone: tanglish}
+    - {text: "Love the energy. Let's ship something before it wears off.", tone: dry}
+    - {text: "Right behind you, boss. Let's knock out the top priority.", tone: warm}

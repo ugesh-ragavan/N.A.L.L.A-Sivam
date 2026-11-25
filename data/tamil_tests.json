@@ -1,0 +1,116 @@
+[
+  {
+    "id": "f1",
+    "category": "formal",
+    "tanglish": "Vanakkam, naan Nalla Sivam. Ungalukku eppadi udhava vendum?",
+    "tamil": "வணக்கம், நான் நல்ல சிவம். உங்களுக்கு எப்படி உதவ வேண்டும்?"
+  },
+  {
+    "id": "f2",
+    "category": "formal",
+    "tanglish": "Indru vaanilai migavum inimaiyaaga irukkiradhu.",
+    "tamil": "இன்று வானிலை மிகவும் இனிமையாக இருக்கிறது."
+  },
+  {
+    "id": "c1",
+    "category": "colloquial",
+    "tanglish": "Yes boss, sollunga!",
+    "tamil": "எஸ் பாஸ், சொல்லுங்க!"
+  },
+  {
+    "id": "c2",
+    "category": "colloquial",
+    "tanglish": "Seri boss, paathukalam.",
+    "tamil": "சரி பாஸ், பார்த்துக்கலாம்."
+  },
+  {
+    "id": "c3",
+    "category": "colloquial",
+    "tanglish": "Aiyo boss, device confirm pannala.",
+    "tamil": "ஐயோ பாஸ், டிவைஸ் கன்ஃபார்ம் பண்ணல."
+  },
+  {
+    "id": "c4",
+    "category": "colloquial",
+    "tanglish": "Sema idea boss, aana mudhalla irukkira velaiya mudinga.",
+    "tamil": "செம ஐடியா பாஸ், ஆனா முதல்ல இருக்கிற வேலையே முடிங்க."
+  },
+  {
+    "id": "c5",
+    "category": "colloquial",
+    "tanglish": "Innaiku romba neramaa velai paakkareenga, konjam break edunga.",
+    "tamil": "இன்னைக்கு ரொம்ப நேரமா வேலை பாக்கறீங்க, கொஞ்சம் பிரேக் எடுங்க."
+  },
+  {
+    "id": "c6",
+    "category": "colloquial",
+    "tanglish": "Naalaikku kaalaila aaru manikku reminder vechirukken.",
+    "tamil": "நாளைக்கு காலைல ஆறு மணிக்கு ரிமைண்டர் வெச்சிருக்கேன்."
+  },
+  {
+    "id": "c7",
+    "category": "colloquial",
+    "tanglish": "Memory-la save pannitten boss. Marakkamaatten.",
+    "tamil": "மெமரில சேவ் பண்ணிட்டேன் பாஸ். மறக்கமாட்டேன்."
+  },
+  {
+    "id": "c8",
+    "category": "colloquial",
+    "tanglish": "Enakku theriyala boss, theriyaadhatha theriyumnu solla maatten.",
+    "tamil": "எனக்கு தெரியல பாஸ், தெரியாததை தெரியும்னு சொல்ல மாட்டேன்."
+  },
+  {
+    "id": "k1",
+    "category": "Kongu flavour",
+    "tanglish": "Enunga, saapteengala? Innaiku enna pudhu velai?",
+    "tamil": "ஏனுங்க, சாப்டீங்களா? இன்னைக்கு என்ன புது வேலை?"
+  },
+  {
+    "id": "k2",
+    "category": "Kongu flavour",
+    "tanglish": "Enna kannu, innum thoongalaya?",
+    "tamil": "என்ன கண்ணு, இன்னும் தூங்கலயா?"
+  },
+  {
+    "id": "m1",
+    "category": "mixed English",
+    "tanglish": "Gemini API konjam slow-a irukku, retry panren.",
+    "tamil": "ஜெமினி API கொஞ்சம் ஸ்லோவா இருக்கு, ரீட்ரை பண்றேன்."
+  },
+  {
+    "id": "m2",
+    "category": "mixed English",
+    "tanglish": "Unga Wi-Fi connect aagala boss, router-a oru thadava restart pannunga.",
+    "tamil": "உங்க Wi-Fi கனெக்ட் ஆகல பாஸ், ரௌட்டரை ஒரு தடவை ரீஸ்டார்ட் பண்ணுங்க."
+  },
+  {
+    "id": "n1",
+    "category": "time",
+    "tanglish": "Ippo mani maalai aaru muppadhu.",
+    "tamil": "இப்போ மணி மாலை ஆறு முப்பது."
+  },
+  {
+    "id": "n2",
+    "category": "date",
+    "tanglish": "Innaiku thedhi November irubathi moonru, irandaayirathu irubathaaru.",
+    "tamil": "இன்னைக்கு தேதி நவம்பர் இருபத்தி மூன்று, இரண்டாயிரத்து இருபத்தாறு."
+  },
+  {
+    "id": "n3",
+    "category": "number",
+    "tanglish": "Veppanilai muppathi rendu degree.",
+    "tamil": "வெப்பநிலை முப்பத்திரண்டு டிக்ரி."
+  },
+  {
+    "id": "p1",
+    "category": "names",
+    "tanglish": "En peru Nalla Sivam. Ugesh ennoda nanban.",
+    "tamil": "என் பேரு நல்ல சிவம். உகேஷ் என்னோட நண்பன்."
+  },
+  {
+    "id": "e1",
+    "category": "caring",
+    "tanglish": "Paravaala boss, moochu vidunga. Mudhalla oru vishayatha mattum sari pannalaam.",
+    "tamil": "பரவால்ல பாஸ், மூச்சு விடுங்க. முதல்ல ஒரு விஷயத்த மட்டும் சரி பண்ணலாம்."
+  }
+]

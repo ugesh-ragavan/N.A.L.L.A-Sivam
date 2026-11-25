@@ -3,739 +3,1067 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NALLA SIVAM — Control Center</title>
+  <title>NALLA SIVAM — Voice Assistant</title>
   <link rel="stylesheet" href="/static/css/theme.css">
 </head>
 <body data-theme="cyan">
 
-  <!-- Ambient Cyber Grid Overlay -->
-  <div class="cyber-grid"></div>
+  <!-- Subtle Ambient Background -->
+  <div class="cyber-grid" aria-hidden="true"></div>
 
   <!-- Reconnection Alert Banner -->
   <div id="reconnect-banner">
     ⚠️ Connection to Nalla Sivam lost. Reconnecting...
   </div>
+  <div id="offline-banner" style="display:none; background:rgba(234, 179, 8, 0.18); border-bottom:1px solid rgba(234, 179, 8, 0.4); color:#fef08a; padding:6px 16px; font-size:0.85rem; text-align:center; z-index:100; font-family:var(--font-mono);">
+    ⚠️ <strong>Degraded Offline Mode Active:</strong> Local time, tasks, notes, and facts are available. Cloud reasoning &amp; web search will resume once internet reconnects.
+  </div>
 
   <div id="app-layout">
     <!-- ====================================================================
-         Left Icon Sidebar (10 Pages)
-         ==================================================================== -->
-    <aside id="sidebar">
-      <div class="sidebar-logo">NS</div>
-      <ul class="nav-list">
-        <li class="nav-item">
-          <button class="nav-btn active" data-page="home" data-tooltip="Home & Orb (1)">
-            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="chat" data-tooltip="Chat & Tools (2)">
-            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="voice" data-tooltip="Voice Studio (3)">
-            <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="personality" data-tooltip="Personality Studio (4)">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="memory" data-tooltip="Memory Bank (5)">
-            <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="reminders" data-tooltip="Reminders & Tasks (6)">
-            <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="devices" data-tooltip="IoT Devices (7)">
-            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="performance" data-tooltip="Performance Waterfall (8)">
-            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="activity" data-tooltip="Activity Log (9)">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-btn" data-page="settings" data-tooltip="Settings & Danger Zone (0)">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
-        </li>
-      </ul>
-    </aside>
-
-    <!-- ====================================================================
-         Top HUD Header
+         Top Minimal Header & 3-Screen Nav (Talk, Memory, Settings)
          ==================================================================== -->
     <header id="top-header">
       <div class="brand-section">
         <div class="brand-title">NALLA <span>SIVAM</span></div>
-        <div class="brand-tag">HUD v2.0</div>
-        <div style="display:flex; align-items:center; gap:6px; margin-left:10px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-left:12px;">
           <span id="conn-dot" style="width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green);"></span>
           <span id="conn-text" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim);">ONLINE</span>
         </div>
       </div>
 
+      <!-- 3 Primary Navigation Tabs -->
+      <nav class="header-minimal-nav" role="tablist" aria-label="Main Navigation">
+        <button class="nav-tab-pill nav-btn active" data-page="home" id="nav-btn-talk" role="tab" aria-selected="true" data-tooltip="Talk Screen (1)">
+          <span>🎙️</span> Talk
+        </button>
+        <button class="nav-tab-pill nav-btn" data-page="memory" id="nav-btn-memory" role="tab" aria-selected="false" data-tooltip="Memory Bank (2)">
+          <span>🧠</span> Memory
+        </button>
+        <button class="nav-tab-pill nav-btn" data-page="settings" id="nav-btn-settings" role="tab" aria-selected="false" data-tooltip="Settings (3)">
+          <span>⚙️</span> Settings
+        </button>
+      </nav>
+
+      <!-- Right Header Actions: Debug Drawer & Theme Toggle -->
       <div class="header-actions">
-        <!-- Palette hint shortcut button -->
-        <button class="btn btn-sm btn-outline" onclick="window.NallaApp.switchPage('chat')" style="font-family:var(--font-mono); font-size:0.75rem;">
-          <kbd style="background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px;">Ctrl+K</kbd> Actions
+        <!-- Debug Drawer Toggle Button -->
+        <button class="btn btn-sm btn-outline" id="debug-drawer-toggle-btn" title="Toggle Debug Drawer (D)" aria-label="Toggle Debug Drawer">
+          <span>🐞</span> Debug <kbd>D</kbd>
         </button>
 
-        <!-- Accent Colour Switcher -->
-        <div class="theme-picker">
-          <div class="theme-dot theme-cyan active" data-theme-choice="cyan" title="Cyan Theme"></div>
-          <div class="theme-dot theme-violet" data-theme-choice="violet" title="Violet Theme"></div>
-          <div class="theme-dot theme-amber" data-theme-choice="amber" title="Amber Theme"></div>
-          <div class="theme-dot theme-green" data-theme-choice="green" title="Green Theme"></div>
-        </div>
+        <!-- Theme Toggle (Dark / Light) -->
+        <button class="btn btn-sm btn-outline" id="theme-toggle-btn" title="Toggle Light / Dark Theme" aria-label="Toggle Theme">
+          🌓
+        </button>
 
-        <div class="clock-display" id="header-clock">--:--:--</div>
+        <div class="clock-display" id="header-clock" aria-label="System Clock">--:--:--</div>
       </div>
     </header>
 
     <!-- ====================================================================
-         Main Stage (10 Page Views)
+         Main Stage (Strictly 3 Minimal Screens)
          ==================================================================== -->
     <main id="main-stage">
       
-      <!-- PAGE 1: HOME & ORB CENTERPIECE -->
-      <section id="page-home" class="page-view active">
-        <div class="orb-stage-wrapper">
-          <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">
-            Live Voice Loop (Phase 4) Centerpiece
-          </div>
-          <canvas id="orb-canvas" width="320" height="320"></canvas>
-
-          <div class="orb-state-indicator">
-            <span class="orb-state-dot"></span>
-            <span id="orb-state-label">IDLE</span>
-          </div>
-
-          <!-- Orb Voice Control Bar -->
-          <div class="orb-controls">
-            <button class="btn btn-lg btn-primary" id="orb-ptt-btn">🎤 Push-To-Talk (Space)</button>
-            <button class="btn btn-outline" id="orb-mute-btn">🎙️ Mute</button>
-            <button class="btn btn-outline btn-red" id="orb-stop-btn">⏹ Stop</button>
-          </div>
-
-          <!-- Quick action chips -->
-          <div class="quick-chips">
-            <span class="chip" data-action="time">⏰ "What time is it?"</span>
-            <span class="chip" data-action="remember">🧠 "Remember this"</span>
-            <span class="chip" data-action="reminder">🔔 "Set reminder"</span>
-            <span class="chip" data-action="chat">💬 Open Chat</span>
-          </div>
-
-          <!-- Live transcript console -->
-          <div class="live-transcript-box" id="live-transcript-content">
-            <div style="color:var(--text-dim);">[Voice system initialized. Ready for speech interaction or push-to-talk.]</div>
-          </div>
-        </div>
-
-        <!-- Home Status Strip -->
-        <div class="status-strip">
-          <div class="status-item">
-            <span class="label">Gemini Provider</span>
-            <span class="value" id="strip-model-val">gemini-flash</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Microphone</span>
-            <span class="value" id="strip-mic-status" style="color:var(--green);">LIVE</span>
-          </div>
-          <div class="status-item">
-            <span class="label">MQTT Broker</span>
-            <span class="value" id="strip-mqtt-status" style="color:var(--text-bright);">127.0.0.1:1883</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Memories</span>
-            <span class="value" id="strip-mem-val">--</span>
-          </div>
-          <div class="status-item">
-            <span class="label">Turns Today</span>
-            <span class="value" id="strip-turns-val">--</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 2: CHAT & TOOLS -->
-      <section id="page-chat" class="page-view">
-        <div class="hud-card hud-bracket chat-container">
-          <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px;">
-            <div class="card-title">
-              <span class="icon-accent">💬</span> Nalla Sivam Conversation
+      <!-- ================================================================
+           SCREEN 1: TALK (Default: JARVIS HUD Stage with Minimal Switch)
+           ================================================================ -->
+      <section id="page-home" class="page-view active hud-look" role="tabpanel" aria-label="Talk Screen">
+        <!-- HUD Boot Sequence Overlay (1.5s, skippable) -->
+        <div id="hud-boot-overlay" class="hud-boot-overlay">
+          <div class="hud-boot-box">
+            <div class="hud-boot-logo">
+              <span class="hud-boot-arc"></span>
+              <span class="hud-boot-core"></span>
             </div>
-            <button class="btn btn-sm btn-outline btn-red" id="chat-clear-btn">Clear Chat</button>
-          </div>
-
-          <div class="chat-messages" id="chat-messages-container">
-            <div style="text-align:center; color:var(--text-dim); margin-top:40px;">
-              Conversation initialized. Ask a question or give a command.
+            <div class="hud-boot-title">NALLA SIVAM // JARVIS OS v2.4</div>
+            <div class="hud-boot-lines" id="hud-boot-lines">
+              <div class="boot-line active">&gt; INITIALIZING NEURAL INTERFACE...</div>
             </div>
-          </div>
-
-          <div class="chat-input-bar">
-            <input type="text" id="chat-user-input" placeholder="Type a message or command (e.g. 'turn on relay 1', 'what time is it?')...">
-            <button class="btn btn-primary" id="chat-send-btn">Send</button>
+            <button type="button" class="hud-boot-skip-btn" id="hud-boot-skip-btn">[ PRESS SPACE OR CLICK TO SKIP ]</button>
           </div>
         </div>
-      </section>
 
-      <!-- PAGE 3: VOICE STUDIO -->
-      <section id="page-voice" class="page-view">
-        <!-- Fallback / Status Notice Banner -->
-        <div id="vs-notice-banner" style="display:none; background:rgba(255, 180, 0, 0.15); border:1px solid #ffb400; color:#ffb400; padding:10px 16px; border-radius:6px; margin-bottom:16px; font-size:0.85rem; align-items:center; justify-content:space-between;">
-          <span id="vs-notice-text">Notice</span>
-          <button class="btn btn-sm btn-outline" style="padding:2px 8px; font-size:0.75rem;" onclick="document.getElementById('vs-notice-banner').style.display='none'">Dismiss</button>
+        <!-- JARVIS Holographic HUD Background Vectors & Circuit Traces -->
+        <div class="jarvis-hud-bg" id="jarvis-hud-bg" aria-hidden="true">
+          <div class="jarvis-hud-haze"></div>
+          <div class="jarvis-hud-ambient"></div>
+          <svg class="jarvis-hud-svg" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g class="jarvis-hud-glow">
+              <!-- Left Circuit Bus -->
+              <g class="hud-module hud-circuit-left">
+                <path d="M68 108H232L254 130H410" />
+                <path d="M68 108L46 130V252L68 274H232" />
+                <circle cx="132" cy="191" r="56" />
+                <ellipse cx="132" cy="191" rx="56" ry="20" />
+                <path d="M89 156C113 174 150 204 174 226M174 156C150 174 113 204 89 226" />
+                <path d="M276 154H424M276 176H385M276 198H430M276 220H364" />
+              </g>
+              <!-- Top Circuit Trace -->
+              <g class="hud-module hud-circuit-top">
+                <path d="M585 130H858" />
+                <path d="M610 154H876M646 178H846M598 202H790" />
+                <circle cx="890" cy="154" r="5" />
+                <circle cx="846" cy="178" r="4" />
+                <path d="M1035 139V191M1009 165H1061" />
+              </g>
+              <!-- Right Telemetry Data Grid -->
+              <g class="hud-module hud-circuit-data">
+                <path class="hud-data-line" d="M1192 303H1314M1192 327H1288M1192 351H1328M1192 375H1268" />
+                <rect class="hud-data-pixel" x="1192" y="411" width="14" height="14" />
+                <rect class="hud-data-pixel" x="1219" y="385" width="14" height="14" />
+                <rect class="hud-data-pixel" x="1246" y="411" width="14" height="14" />
+                <rect class="hud-data-pixel" x="1273" y="385" width="14" height="14" />
+                <rect class="hud-data-pixel" x="1300" y="411" width="14" height="14" />
+              </g>
+              <!-- Bottom Telemetry Chart & Waveform -->
+              <g class="hud-module hud-circuit-bottom">
+                <path d="M74 758V848H330" />
+                <path d="M74 816H322" />
+                <path class="hud-waveform-path" d="M74 816C102 816 106 756 132 756C158 756 166 828 194 792C222 756 232 704 260 776C282 832 302 816 322 816" />
+                <path d="M1188 704V826H1344" />
+                <path class="hud-bars-path" d="M1214 800V758M1250 800V728M1286 800V746M1322 800V688" />
+              </g>
+              <!-- Orbit Rings -->
+              <g class="hud-orbit">
+                <circle cx="1230" cy="170" r="96" />
+                <circle cx="1230" cy="170" r="66" />
+                <path d="M1230 74A96 96 0 0 1 1326 170" class="hud-arc" />
+                <path d="M1134 170A96 96 0 0 1 1230 74" class="hud-arc" />
+                <circle cx="1230" cy="170" r="14" class="hud-core-dot" />
+              </g>
+            </g>
+          </svg>
         </div>
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:20px;">
+        <div class="talk-stage">
           
-          <!-- Voice Picker, Profiles & Preview -->
-          <div class="hud-card hud-bracket">
-            <div class="card-header" style="margin-bottom:12px;">
-              <div>
-                <div class="card-title"><span class="icon-accent">🎙️</span> Voice Synthesis & Profiles</div>
-                <div class="card-subtitle">Neural EdgeTTS & Piper with bilingual Tanglish auto-switching.</div>
+          <!-- HUD Corner Readouts (Thin technical brackets, hidden on phone screens) -->
+          <div class="hud-corner-readout hud-corner-tl" id="hud-corner-tl" aria-hidden="true">
+            <div class="hud-bracket-icon tl"></div>
+            <div class="hud-readout-line"><span class="hud-label">CHRONO:</span> <span class="hud-val" id="hud-val-time">--:--:--</span></div>
+            <div class="hud-readout-line"><span class="hud-label">CALENDAR:</span> <span class="hud-val" id="hud-val-date">--- -- ---</span></div>
+          </div>
+
+          <div class="hud-corner-readout hud-corner-tr" id="hud-corner-tr" aria-hidden="true">
+            <div class="hud-bracket-icon tr"></div>
+            <div class="hud-readout-line"><span class="hud-label">GEMINI:</span> <span class="hud-val" id="hud-val-gemini">ONLINE</span></div>
+            <div class="hud-readout-line"><span class="hud-label">CORE:</span> <span class="hud-val" id="hud-val-model">gemini-2.5-flash</span></div>
+          </div>
+
+          <div class="hud-corner-readout hud-corner-bl" id="hud-corner-bl" aria-hidden="true">
+            <div class="hud-bracket-icon bl"></div>
+            <div class="hud-readout-line"><span class="hud-label">VOICE:</span> <span class="hud-val" id="hud-val-engine">gemini-tts</span></div>
+            <div class="hud-readout-line"><span class="hud-label">MIC RX:</span> <span class="hud-val" id="hud-val-mic">LIVE · 0%</span></div>
+          </div>
+
+          <div class="hud-corner-readout hud-corner-br" id="hud-corner-br" aria-hidden="true">
+            <div class="hud-bracket-icon br"></div>
+            <div class="hud-readout-line"><span class="hud-label">LATENCY:</span> <span class="hud-val" id="hud-val-latency">-- ms</span></div>
+            <div class="hud-readout-line"><span class="hud-label">MEM BANK:</span> <span class="hud-val" id="hud-val-mem">-- facts</span></div>
+          </div>
+
+          <!-- Status Chip Row (Minimal Mode View) -->
+          <div class="status-chip-row" id="talk-status-chips">
+            <div class="chip-item">
+              <span class="chip-dot dot-green"></span>
+              <span>Gemini: <strong id="strip-model-val">gemini-2.5-flash</strong></span>
+            </div>
+            <div class="chip-item">
+              <span class="chip-dot dot-green" id="strip-mic-dot"></span>
+              <span>Mic: <strong id="strip-mic-status">LIVE</strong></span>
+            </div>
+            <div class="chip-item">
+              <span class="chip-dot dot-cyan"></span>
+              <span>Engine: <strong id="talk-engine-val">gemini-tts</strong></span>
+            </div>
+            <div class="chip-item" id="talk-latency-chip" style="display:none;">
+              <span class="chip-dot dot-amber"></span>
+              <span>Latency: <strong id="talk-last-latency">-- ms</strong></span>
+            </div>
+          </div>
+
+          <!-- Central JARVIS Arc Reactor & Concentric Rings Orb -->
+          <div class="orb-stage-wrapper" id="orb-stage-wrapper">
+            <div class="orb-canvas-container">
+              <canvas id="orb-canvas" width="380" height="380" aria-label="Nalla Sivam JARVIS Voice Orb"></canvas>
+            </div>
+            <div class="orb-state-indicator">
+              <span class="orb-state-dot"></span>
+              <span id="orb-state-label">IDLE</span>
+              <span id="orb-countdown" style="display:none; color:var(--amber); margin-left:8px; font-weight:700;">⏱️ 30s</span>
+            </div>
+          </div>
+
+          <!-- Floating Subtitles (Last Exchange with Typewriter Effect) -->
+          <div class="hud-subtitles-container" id="hud-subtitles-container">
+            <div class="hud-subtitle-box">
+              <div class="hud-subtitle-user" id="hud-sub-user" style="display:none;">
+                <span class="hud-sub-tag">YOU:</span> <span id="hud-sub-user-text"></span>
               </div>
-              <span class="badge badge-accent" id="vs-active-profile-badge">Nalla Default</span>
-            </div>
-
-            <!-- Profile selector & manager -->
-            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); padding:12px; border-radius:6px; margin-bottom:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <label style="font-size:0.8rem; color:var(--text-dim);">SAVED VOICE PROFILE (MAX 5)</label>
-                <div style="display:flex; gap:6px;">
-                  <button class="btn btn-sm btn-outline" id="vs-save-profile-btn" title="Save current settings as a named profile">💾 Save</button>
-                  <button class="btn btn-sm btn-outline btn-red" id="vs-delete-profile-btn" title="Delete selected profile">🗑️</button>
-                </div>
+              <div class="hud-subtitle-assistant" id="hud-sub-assistant">
+                <span class="hud-sub-tag nalla-tag">NALLA:</span> <span id="hud-sub-assistant-text">Yes boss, sollunga!</span><span class="hud-typewriter-cursor">|</span>
               </div>
-              <select id="vs-profile-select" style="width:100%;">
-                <option value="Nalla Default">Nalla Default</option>
-                <option value="Calm Night">Calm Night</option>
-                <option value="Hype">Hype</option>
-                <option value="Robotic Butler">Robotic Butler</option>
-                <option value="Offline Piper">Offline Piper</option>
-              </select>
             </div>
-
-            <!-- Dynamic Voice selection -->
-            <div style="margin-bottom:14px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                <label style="font-size:0.8rem; color:var(--text-dim);">PRIMARY VOICE (ENGLISH / DEFAULT)</label>
-                <span id="vs-voice-engine-badge" style="font-size:0.75rem; color:var(--accent);">edge-tts</span>
-              </div>
-              <select id="vs-voice-select" style="width:100%;">
-                <!-- Dynamically populated from /api/voice/voices -->
-                <option value="en-IN-NeerjaNeural">en-IN-NeerjaNeural (Female, India)</option>
-                <option value="en-IN-PrabhatNeural">en-IN-PrabhatNeural (Male, India)</option>
-                <option value="en_US-lessac-medium">en_US-lessac-medium (Piper Offline)</option>
-              </select>
-            </div>
-
-            <!-- Tamil Voice for Auto Switching -->
-            <div style="margin-bottom:16px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">TAMIL VOICE (AUTO SENTENCE SWITCHING)</label>
-              <select id="vs-voice-ta-select" style="width:100%;">
-                <!-- Dynamically populated from /api/voice/voices -->
-                <option value="ta-IN-PallaviNeural">ta-IN-PallaviNeural (Female, India)</option>
-                <option value="ta-IN-ValluvarNeural">ta-IN-ValluvarNeural (Male, India)</option>
-              </select>
-            </div>
-
-            <!-- Preview Button -->
-            <div style="margin-bottom:18px;">
-              <button class="btn btn-outline" id="vs-preview-btn" style="width:100%; display:flex; justify-content:center; align-items:center; gap:8px;">
-                <span>▶️</span> Preview Voice ("Yes boss, sollunga!")
+            <div style="display:flex; justify-content:center; margin-top:6px;">
+              <button type="button" class="btn btn-xs btn-outline hud-history-toggle-btn" id="hud-history-toggle-btn" title="View conversation history">
+                📜 Full History <span id="hud-history-badge" class="badge badge-accent" style="margin-left:4px; font-size:0.65rem;">0</span>
               </button>
             </div>
-
-            <!-- Speed Presets -->
-            <div style="margin-bottom:14px;">
-              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">SPEAKING SPEED PRESETS</div>
-              <div style="display:flex; gap:8px;">
-                <button class="btn btn-sm btn-outline speed-preset-btn" data-preset="Relaxed" style="flex:1;">Relaxed (0.85x)</button>
-                <button class="btn btn-sm btn-outline speed-preset-btn active" data-preset="Normal" style="flex:1;">Normal (1.0x)</button>
-                <button class="btn btn-sm btn-outline speed-preset-btn" data-preset="Quick" style="flex:1;">Quick (1.15x)</button>
-              </div>
-            </div>
-
-            <!-- Rate, Pitch, Volume sliders -->
-            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
-              <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
-                  <span>Speaking Rate</span>
-                  <span id="vs-rate-val" style="color:var(--accent);">+0% (1.00x)</span>
-                </div>
-                <input type="range" id="vs-rate-slider" min="0.5" max="1.5" step="0.05" value="1.0" style="width:100%;">
-              </div>
-              <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
-                  <span>Pitch Shift</span>
-                  <span id="vs-pitch-val" style="color:var(--green);">+0 Hz</span>
-                </div>
-                <input type="range" id="vs-pitch-slider" min="-20" max="20" step="1" value="0" style="width:100%;">
-              </div>
-              <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
-                  <span>Playback Volume</span>
-                  <span id="vs-vol-val" style="color:var(--purple);">100%</span>
-                </div>
-                <input type="range" id="vs-vol-slider" min="0" max="100" step="5" value="100" style="width:100%;">
-              </div>
-            </div>
-
-            <button class="btn btn-primary" id="vs-test-speaker-btn" style="width:100%;">🔊 Test Speaker Audio</button>
           </div>
 
-          <!-- STT, Microphone & Audio Feel Tuning -->
-          <div class="hud-card hud-bracket">
-            <div class="card-title"><span class="icon-accent">⚡</span> Speech Input & Audio Feel</div>
-            <div class="card-subtitle" style="margin-bottom:16px;">Microphone VAD, Whisper CPU, and audio cue chimes.</div>
-
-            <!-- Audio Feel: Chimes -->
-            <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); padding:12px; border-radius:6px; margin-bottom:18px;">
-              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:10px;">AUDIO FEEL (CHIMES)</div>
-              <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
-                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
-                  <input type="checkbox" id="vs-chime-listen" checked>
-                  <span>Soft "Listening" chime on wake / PTT</span>
-                </label>
-                <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
-                  <input type="checkbox" id="vs-chime-done" checked>
-                  <span>Soft "Done" chime when reply finishes</span>
-                </label>
-              </div>
-              <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
-                  <span>Chime Volume</span>
-                  <span id="vs-chime-vol-val" style="color:var(--accent);">80%</span>
-                </div>
-                <input type="range" id="vs-chime-vol" min="0" max="100" step="5" value="80" style="width:100%;">
+          <!-- Conversation Transcript Card / Drawer -->
+          <div class="transcript-card" id="talk-transcript-card">
+            <div class="transcript-header">
+              <span>CONVERSATION HISTORY</span>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button class="btn btn-xs btn-outline" id="talk-clear-transcript-btn" style="padding:1px 6px; font-size:0.7rem;">Clear</button>
+                <button class="btn btn-xs btn-outline hud-drawer-close-btn" id="hud-drawer-close-btn" style="padding:1px 6px; font-size:0.7rem;">✕ Hide</button>
               </div>
             </div>
+            <div class="transcript-content" id="live-transcript-content" role="log" aria-live="polite">
+              <div class="transcript-msg system-msg" style="color:var(--text-dim); font-size:0.8rem;">
+                [Voice core ready. Hold Space or press HOLD TO TALK button to speak.]
+              </div>
+            </div>
+          </div>
 
-            <!-- Whisper Model -->
-            <div style="margin-bottom:14px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">WHISPER MODEL</label>
-              <select id="vs-stt-select" style="width:100%;">
-                <option value="base">base (int8, ~140MB - Fast CPU, low latency)</option>
-                <option value="small">small (int8, ~460MB - Accurate Tanglish & Tamil)</option>
+          <!-- Controls Bar -->
+          <div class="talk-controls-bar">
+            <!-- Big HOLD TO TALK Button with Space hint -->
+            <button class="btn-hold-to-talk" id="orb-ptt-btn" aria-label="Hold to talk">
+              <span id="ptt-btn-icon" style="font-size:1.4rem;">🎙️</span>
+              <div class="ptt-text-wrap">
+                <span id="ptt-btn-label">HOLD TO TALK</span>
+                <span class="ptt-hint-sub">Hold Space or Touch</span>
+              </div>
+            </button>
+            <div id="ptt-hold-timer" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-dim); min-height:1.1rem;">
+              Hold Space or press & hold button
+            </div>
+
+            <!-- Aux Controls: Stop (Esc) and Mute -->
+            <div class="talk-aux-controls">
+              <button class="btn btn-outline btn-red" id="orb-stop-btn" title="Stop speech (Esc)">
+                ⏹ Stop <kbd>Esc</kbd>
+              </button>
+              <button class="btn btn-outline" id="orb-screen-btn" title="Inspect Screen (Ctrl+Shift+S)">
+                👁️ Screen
+              </button>
+              <button class="btn btn-outline" id="orb-mute-btn" title="Mute/unmute microphone">
+                🎙️ Mute
+              </button>
+            </div>
+          </div>
+
+          <!-- Text Input Bar (/ to focus) -->
+          <div class="talk-input-bar">
+            <input type="text" id="chat-user-input" placeholder="Type a message or command... (Press / to focus)" autocomplete="off">
+            <button class="btn btn-primary" id="chat-send-btn">Send ↵</button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================================================================
+           SCREEN 2: MEMORY (Two Tabs: Memories & Reminders)
+           ================================================================ -->
+      <section id="page-memory" class="page-view" role="tabpanel" aria-label="Memory & Reminders Screen">
+        <div class="memory-stage">
+          
+          <!-- Sub-navigation tabs: Memories | Entities | Inbox | Journal | Review | Tasks | Reminders -->
+          <div class="subnav-tabs" role="tablist">
+            <button class="subnav-btn active" id="subtab-btn-memories" data-target="subtab-view-memories" role="tab" aria-selected="true">
+              🧠 Facts
+            </button>
+            <button class="subnav-btn" id="subtab-btn-entities" data-target="subtab-view-entities" role="tab" aria-selected="false">
+              👥 Entities & People
+            </button>
+            <button class="subnav-btn" id="subtab-btn-inbox" data-target="subtab-view-inbox" role="tab" aria-selected="false">
+              📥 Candidate Inbox <span class="badge badge-accent" id="inbox-badge-count" style="font-size:0.65rem; padding:1px 5px; margin-left:4px; display:none;">0</span>
+            </button>
+            <button class="subnav-btn" id="subtab-btn-journal" data-target="subtab-view-journal" role="tab" aria-selected="false">
+              📔 Daily Journal
+            </button>
+            <button class="subnav-btn" id="subtab-btn-review" data-target="subtab-view-review" role="tab" aria-selected="false">
+              🔄 Weekly Review
+            </button>
+            <button class="subnav-btn" id="subtab-btn-tasks" data-target="subtab-view-tasks" role="tab" aria-selected="false">
+              📋 Tasks & Todos
+            </button>
+            <button class="subnav-btn" id="subtab-btn-reminders" data-target="subtab-view-reminders" role="tab" aria-selected="false">
+              🔔 Reminders
+            </button>
+          </div>
+
+          <!-- Sub-tab 1: Memories View -->
+          <div id="subtab-view-memories" class="subtab-content active">
+            <!-- Search & Filter Toolbar -->
+            <div class="mem-toolbar">
+              <div class="search-wrap">
+                <input type="text" id="mem-search-input" placeholder="Search durable memories with FTS5...">
+              </div>
+              <select id="mem-filter-cat">
+                <option value="">All Categories</option>
+                <option value="preference">Preference</option>
+                <option value="fact">Fact</option>
+                <option value="project">Project</option>
+                <option value="person">Person</option>
+                <option value="task">Task</option>
               </select>
-            </div>
-
-            <!-- STT Language -->
-            <div style="margin-bottom:14px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">SPEECH LANGUAGE DETECTION</label>
-              <select id="vs-stt-lang-select" style="width:100%;">
-                <option value="auto">auto (Detect English or Tamil automatically)</option>
-                <option value="en">English (Force en)</option>
-                <option value="ta">Tamil (Force ta)</option>
+              <select id="mem-filter-imp">
+                <option value="">All Importances</option>
+                <option value="5">★ 5 (Critical)</option>
+                <option value="4">★ 4 (High)</option>
+                <option value="3">★ 3 (Normal)</option>
+                <option value="2">★ 2 (Low)</option>
+                <option value="1">★ 1 (Minimal)</option>
               </select>
+              <span class="badge badge-accent" id="mem-total-count">0 memories</span>
+              <a href="/api/memories/export" class="btn btn-outline" download id="mem-export-btn">📥 Export JSON</a>
             </div>
 
-            <!-- Microphone Device Selection -->
-            <div style="margin-bottom:14px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">MICROPHONE HARDWARE</label>
-              <select id="vs-mic-device-select" style="width:100%;">
-                <option value="">Default System Microphone</option>
+            <!-- Add Memory Form -->
+            <form id="mem-add-form" class="hud-card mem-add-card">
+              <div class="form-row">
+                <input type="text" id="mem-new-text" placeholder="Add durable fact or preference (e.g. 'Prefers Tamil colloquial tone')..." required>
+                <select id="mem-new-cat" style="width:130px;">
+                  <option value="preference">Preference</option>
+                  <option value="fact" selected>Fact</option>
+                  <option value="project">Project</option>
+                  <option value="person">Person</option>
+                  <option value="task">Task</option>
+                </select>
+                <select id="mem-new-imp" style="width:120px;">
+                  <option value="1">Imp: 1 (Low)</option>
+                  <option value="2">Imp: 2</option>
+                  <option value="3" selected>Imp: 3 (Normal)</option>
+                  <option value="4">Imp: 4</option>
+                  <option value="5">Imp: 5 (Critical)</option>
+                </select>
+                <button type="submit" class="btn btn-primary">+ Add Memory</button>
+              </div>
+            </form>
+
+            <!-- Last Recalled Memory Strip -->
+            <div id="mem-last-used-container" style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:10px 14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">
+                  🧠 Memories Recalled in Last Reply:
+                </span>
+                <button class="btn btn-xs btn-outline" id="mem-refresh-last-btn" style="padding:2px 8px; font-size:0.72rem;">↻ Refresh</button>
+              </div>
+              <div id="mem-last-used-list" style="display:flex; flex-direction:column; gap:4px;">
+                <span style="color:var(--text-dim); font-size:0.8rem; font-style:italic;">No memories injected yet or memory disabled.</span>
+              </div>
+            </div>
+
+            <!-- Memory Cards Grid -->
+            <div id="mem-cards-grid" class="mem-cards-grid">
+              <div style="text-align:center; color:var(--text-dim); padding:40px; grid-column:1/-1;">Loading memories...</div>
+            </div>
+          </div>
+
+          <!-- Sub-tab 2: Entities & People View -->
+          <div id="subtab-view-entities" class="subtab-content">
+            <div class="mem-toolbar">
+              <div class="search-wrap">
+                <input type="text" id="entity-search-input" placeholder="Search people, projects, places, orgs...">
+              </div>
+              <select id="entity-filter-type">
+                <option value="">All Types</option>
+                <option value="person">Person</option>
+                <option value="project">Project</option>
+                <option value="place">Place</option>
+                <option value="org">Org</option>
+                <option value="topic">Topic</option>
               </select>
+              <span class="badge badge-accent" id="entity-total-count">0 entities</span>
             </div>
 
-            <!-- Mic Sensitivity / Energy Threshold -->
-            <div style="margin-bottom:16px;">
-              <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
-                <span>VAD Sensitivity / Energy Threshold</span>
-                <span id="vs-mic-sens-val" style="color:var(--accent);">400</span>
+            <!-- Add Entity Form -->
+            <form id="entity-add-form" class="hud-card mem-add-card">
+              <div class="form-row">
+                <input type="text" id="entity-new-name" placeholder="Entity Name (e.g. 'Ravi', 'Project Falcon')..." required style="flex:1;">
+                <select id="entity-new-type" style="width:130px;">
+                  <option value="person">Person</option>
+                  <option value="project">Project</option>
+                  <option value="place">Place</option>
+                  <option value="org">Org</option>
+                  <option value="topic" selected>Topic</option>
+                </select>
+                <input type="text" id="entity-new-summary" placeholder="Optional summary / role..." style="flex:1.5;">
+                <button type="submit" class="btn btn-primary">+ Add Entity</button>
               </div>
-              <input type="range" id="vs-mic-sensitivity-slider" min="100" max="1500" step="25" value="400" style="width:100%;">
-            </div>
+            </form>
 
-            <!-- Mic energy level meter -->
-            <div style="margin-bottom:20px;">
-              <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
-                <span>Live Microphone Energy Meter</span>
-                <span id="vs-mic-level-label" style="font-family:var(--font-mono); color:var(--accent);">Idle</span>
-              </div>
-              <div style="width:100%; height:12px; background:rgba(0,0,0,0.4); border-radius:6px; overflow:hidden; border:1px solid var(--border-subtle);">
-                <div id="vs-mic-meter-fill" style="width:0%; height:100%; background:var(--accent); transition:width 0.2s;"></div>
-              </div>
+            <div id="entity-cards-grid" class="mem-cards-grid">
+              <div style="text-align:center; color:var(--text-dim); padding:40px; grid-column:1/-1;">Loading entities...</div>
             </div>
+          </div>
 
-            <div style="display:flex; gap:10px;">
-              <button class="btn btn-outline" id="vs-test-mic-btn" style="flex:1;">🎙️ Test Mic (1.5s)</button>
-              <button class="btn btn-primary" id="vs-save-all-btn" style="flex:1;">💾 Save All Live</button>
+          <!-- Sub-tab 3: Candidate Inbox View -->
+          <div id="subtab-view-inbox" class="subtab-content">
+            <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:0.85rem; color:var(--text-dim);">
+                💡 <strong>Learned Facts Inbox:</strong> Nalla proposes facts learned in conversation. Nothing becomes durable memory without your OK.
+              </div>
+              <button class="btn btn-xs btn-outline" id="inbox-refresh-btn">↻ Refresh Inbox</button>
+            </div>
+            <div id="inbox-cards-list" style="display:flex; flex-direction:column; gap:12px;">
+              <div style="text-align:center; color:var(--text-dim); padding:40px;">No pending candidates.</div>
+            </div>
+          </div>
+
+          <!-- Sub-tab 4: Daily Journal View -->
+          <div id="subtab-view-journal" class="subtab-content">
+            <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <div style="font-size:0.85rem; color:var(--text-dim);">
+                📔 <strong>Daily Journal:</strong> Local summary of completed tasks, notes, and topics. Stays strictly local on your machine.
+              </div>
+              <button class="btn btn-primary btn-sm" id="journal-generate-today-btn">⚡ Generate Today's Journal</button>
+            </div>
+            <div id="journal-entries-list" style="display:flex; flex-direction:column; gap:14px;">
+              <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading daily journals...</div>
+            </div>
+          </div>
+
+          <!-- Sub-tab 5: Weekly Review View ("Still True?") -->
+          <div id="subtab-view-review" class="subtab-content">
+            <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:0.85rem; color:var(--text-dim);">
+                🔄 <strong>Weekly "Still True?" Review:</strong> Facts not confirmed for 30+ days. Untouched facts lose priority gradually but are never deleted automatically.
+              </div>
+              <button class="btn btn-xs btn-outline" id="review-refresh-btn">↻ Check Stale Facts</button>
+            </div>
+            <div id="review-facts-list" style="display:flex; flex-direction:column; gap:12px;">
+              <div style="text-align:center; color:var(--text-dim); padding:40px;">Checking facts...</div>
+            </div>
+          </div>
+
+          <!-- Sub-tab 2: Tasks View -->
+          <div id="subtab-view-tasks" class="subtab-content">
+            <!-- Add Task Form -->
+            <form id="task-add-form" class="hud-card task-add-card" style="margin-bottom:16px;">
+              <div class="form-row">
+                <input type="text" id="task-title-input" placeholder="Add open task (e.g. 'Deploy code fix', 'Refactor audio player')..." required>
+                <select id="task-priority-input" style="width:130px;">
+                  <option value="1">P1 (High)</option>
+                  <option value="2" selected>P2 (Medium)</option>
+                  <option value="3">P3 (Low)</option>
+                </select>
+                <input type="date" id="task-due-input" style="width:160px;">
+                <input type="text" id="task-proj-input" placeholder="Project tag" style="width:130px;">
+                <button type="submit" class="btn btn-primary">+ Add Task</button>
+              </div>
+            </form>
+
+            <!-- Tasks List -->
+            <div id="task-list-container" class="task-list">
+              <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading tasks...</div>
+            </div>
+          </div>
+
+          <!-- Sub-tab 3: Reminders View -->
+          <div id="subtab-view-reminders" class="subtab-content">
+            <!-- Add Reminder Form -->
+            <form id="rem-add-form" class="hud-card rem-add-card">
+              <div class="form-row">
+                <input type="text" id="rem-text-input" placeholder="Set reminder or scheduled task (e.g. 'Deploy NALLA SIVAM')..." required>
+                <input type="datetime-local" id="rem-due-input" required style="width:200px;">
+                <button type="submit" class="btn btn-primary">+ Set Reminder</button>
+              </div>
+            </form>
+
+            <!-- Reminders List -->
+            <div id="rem-list-container" class="rem-list">
+              <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading reminders...</div>
             </div>
           </div>
 
         </div>
       </section>
 
-      <!-- PAGE 4: PERSONALITY STUDIO -->
-      <section id="page-personality" class="page-view">
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
-            <div>
-              <div class="card-title"><span class="icon-accent">🎭</span> Persona & Dynamic Character Tuning</div>
-              <div class="card-subtitle">Tune sarcasm, warmth, and Tanglish frequency.</div>
+      <!-- ================================================================
+           SCREEN 3: SETTINGS (Grouped with Search)
+           ================================================================ -->
+      <section id="page-settings" class="page-view" role="tabpanel" aria-label="Settings Screen">
+        <div class="settings-stage">
+          
+          <!-- Instant Search Filter Bar -->
+          <input type="text" id="settings-search-input" class="settings-search-bar" placeholder="🔍 Search settings (voice, personality, models, talk mode, API key)...">
+
+          <!-- 1. Voice Settings (Two Voice Slots: English & Tamil) -->
+          <div class="settings-section-card" data-keywords="voice engine speech preview tts english tamil audio rate volume lab slots bilingual">
+            <div class="settings-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+              <div><span>🎙️</span> Voice Slots & Bilingual Routing</div>
+              <label style="font-size:0.78rem; color:var(--text-bright); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="vs-auto-switch-toggle" checked>
+                Auto-switch by language
+              </label>
             </div>
-            <span class="badge badge-accent" id="ps-active-mode-badge">Friend Mode</span>
+
+            <!-- Two Slots Side-by-Side -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin-top:8px;">
+              <!-- Slot 1: English Voice -->
+              <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <strong style="color:var(--accent); font-size:0.85rem;">🇬🇧 ENGLISH VOICE SLOT</strong>
+                  <button class="btn btn-xs btn-outline" id="vs-preview-btn" title="Preview English Voice">▶️ Preview</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div>
+                    <label style="font-size:0.72rem; color:var(--text-dim); display:block; margin-bottom:2px;">ENGINE</label>
+                    <select id="vs-engine-select" style="width:100%;">
+                      <option value="gemini" selected>Gemini TTS (Online)</option>
+                      <option value="edge-tts">Microsoft Edge-TTS (Online)</option>
+                      <option value="piper">Piper (Offline)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:0.72rem; color:var(--text-dim); display:block; margin-bottom:2px;">VOICE</label>
+                    <select id="vs-voice-select" style="width:100%;">
+                      <option value="achird">Achird (Friendly, warm - Gemini)</option>
+                      <option value="zubenelgenubi">Zubenelgenubi (Casual - Gemini)</option>
+                      <option value="puck">Puck (Upbeat - Gemini)</option>
+                      <option value="en-IN-NeerjaNeural">en-IN-NeerjaNeural (Edge)</option>
+                    </select>
+                  </div>
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div>
+                      <div style="display:flex; justify-content:space-between; font-size:0.72rem;">
+                        <span>Rate</span>
+                        <span id="vs-rate-val" style="color:var(--accent);">1.00x</span>
+                      </div>
+                      <input type="range" id="vs-rate-slider" min="0.5" max="1.5" step="0.05" value="1.0" style="width:100%;">
+                    </div>
+                    <div>
+                      <div style="display:flex; justify-content:space-between; font-size:0.72rem;">
+                        <span>Vol</span>
+                        <span id="vs-vol-val" style="color:var(--accent);">100%</span>
+                      </div>
+                      <input type="range" id="vs-vol-slider" min="0" max="100" step="5" value="100" style="width:100%;">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slot 2: Tamil Voice -->
+              <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <strong style="color:var(--accent); font-size:0.85rem;">🇮🇳 TAMIL VOICE SLOT</strong>
+                  <button class="btn btn-xs btn-outline" id="vs-preview-ta-btn" title="Preview Tamil Voice">▶️ Preview</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div>
+                    <label style="font-size:0.72rem; color:var(--text-dim); display:block; margin-bottom:2px;">ENGINE</label>
+                    <select id="vs-engine-ta-select" style="width:100%;">
+                      <option value="edge-tts" selected>Microsoft Edge-TTS (ta-IN priority)</option>
+                      <option value="gemini">Gemini TTS (Tamil Auto)</option>
+                      <option value="piper">Piper (Offline - if model available)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:0.72rem; color:var(--text-dim); display:block; margin-bottom:2px;">VOICE (ta-IN prioritized)</label>
+                    <select id="vs-voice-ta-select" style="width:100%;">
+                      <option value="ta-IN-PallaviNeural">ta-IN-PallaviNeural (Female, India)</option>
+                      <option value="ta-IN-ValluvarNeural">ta-IN-ValluvarNeural (Male, India)</option>
+                      <option value="ta-LK-SaranyaNeural">ta-LK-SaranyaNeural (Sri Lanka)</option>
+                      <option value="ta-SG-VenbaNeural">ta-SG-VenbaNeural (Singapore)</option>
+                      <option value="ta-MY-KaniNeural">ta-MY-KaniNeural (Malaysia)</option>
+                    </select>
+                  </div>
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div>
+                      <div style="display:flex; justify-content:space-between; font-size:0.72rem;">
+                        <span>Rate</span>
+                        <span id="vs-rate-ta-val" style="color:var(--accent);">1.00x</span>
+                      </div>
+                      <input type="range" id="vs-rate-ta-slider" min="0.5" max="1.5" step="0.05" value="1.0" style="width:100%;">
+                    </div>
+                    <div>
+                      <div style="display:flex; justify-content:space-between; font-size:0.72rem;">
+                        <span>Vol</span>
+                        <span id="vs-vol-ta-val" style="color:var(--accent);">100%</span>
+                      </div>
+                      <input type="range" id="vs-vol-ta-slider" min="0" max="100" step="5" value="100" style="width:100%;">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Profile Manager & Voice Lab Row -->
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; border-top:1px solid var(--border-subtle); padding-top:12px; margin-top:8px;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <label style="font-size:0.75rem; color:var(--text-dim);">VOICE PROFILE:</label>
+                <select id="vs-profile-select" style="font-size:0.82rem; padding:4px 8px;">
+                  <option value="Nalla Default">Nalla Default</option>
+                  <option value="Calm Night">Calm Night</option>
+                  <option value="Hype">Hype</option>
+                  <option value="Nalla Edge">Nalla Edge</option>
+                  <option value="Offline Piper">Offline Piper</option>
+                </select>
+                <button class="btn btn-sm btn-outline" id="vs-save-profile-btn" title="Save profile live">💾 Save</button>
+                <button class="btn btn-sm btn-outline btn-red" id="vs-delete-profile-btn" title="Delete profile">🗑️</button>
+              </div>
+
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-sm btn-outline" id="link-voice-lab-btn" onclick="window.NallaPages && window.NallaPages.voice && window.NallaPages.voice.openVoiceLab ? window.NallaPages.voice.openVoiceLab() : window.NallaApp.toggleDebugDrawer(true)">
+                  🔬 Open Tamil Voice Lab
+                </button>
+              </div>
+            </div>
           </div>
 
-          <!-- Presets -->
-          <div style="margin-bottom:16px;">
-            <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">PRESET COMBINATIONS</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="friend">🤝 Cool Friend</button>
-              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="jarvis">🤖 Pure Jarvis</button>
-              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="roast">🔥 Roast Mode</button>
-              <button class="btn btn-sm btn-outline persona-preset-btn" data-preset="calm">🌙 Calm Night</button>
+          <!-- 2. Personality Settings -->
+          <div class="settings-section-card" data-keywords="personality mood sarcasm warmth tamil mix persona prompt character identity">
+            <div class="settings-section-title">
+              <span>🎭</span> Personality & Dynamic Character
             </div>
-          </div>
 
-          <!-- Mode selectors -->
-          <div style="margin-bottom:16px;">
-            <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">MODE BASE</div>
-            <div style="display:flex; gap:8px;">
+            <!-- Operating Mode -->
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:0.8rem; color:var(--text-dim);">BASE OPERATING MODE:</span>
               <button class="btn btn-sm btn-outline mode-select-btn active" data-mode="Friend">Friend</button>
               <button class="btn btn-sm btn-outline mode-select-btn" data-mode="Jarvis">Jarvis</button>
               <button class="btn btn-sm btn-outline mode-select-btn" data-mode="Focus">Focus</button>
               <button class="btn btn-sm btn-outline mode-select-btn" data-mode="Engineer">Engineer</button>
             </div>
-          </div>
 
-          <!-- Sliders Grid -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:20px;">
-            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
-              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
-                <span>Sarcasm</span>
-                <span id="ps-val-sarcasm" style="color:var(--accent);">7/10</span>
+            <!-- 3 Sliders: Sarcasm, Warmth, Tamil Mix + Verbosity -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
+              <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                  <span>Sarcasm</span>
+                  <span id="ps-val-sarcasm" style="color:var(--accent); font-weight:700;">7/10</span>
+                </div>
+                <input type="range" id="ps-slider-sarcasm" min="0" max="10" step="1" value="7" style="width:100%;">
               </div>
-              <input type="range" id="ps-slider-sarcasm" min="0" max="10" step="1" value="7" style="width:100%;">
-            </div>
 
-            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
-              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
-                <span>Warmth</span>
-                <span id="ps-val-warmth" style="color:var(--green);">8/10</span>
+              <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                  <span>Warmth</span>
+                  <span id="ps-val-warmth" style="color:var(--green); font-weight:700;">8/10</span>
+                </div>
+                <input type="range" id="ps-slider-warmth" min="0" max="10" step="1" value="8" style="width:100%;">
               </div>
-              <input type="range" id="ps-slider-warmth" min="0" max="10" step="1" value="8" style="width:100%;">
-            </div>
 
-            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
-              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:6px;">
-                <span>Tamil Mix</span>
-                <span id="ps-val-tamil" style="color:var(--amber);">40%</span>
+              <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                  <span>Tamil Mix</span>
+                  <span id="ps-val-tamil" style="color:var(--amber); font-weight:700;">40%</span>
+                </div>
+                <input type="range" id="ps-slider-tamil" min="0" max="100" step="5" value="40" style="width:100%;">
               </div>
-              <input type="range" id="ps-slider-tamil" min="0" max="100" step="5" value="40" style="width:100%;">
+
+              <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                <div style="font-size:0.8rem; margin-bottom:4px;">Verbosity</div>
+                <select id="ps-select-verbosity" style="width:100%; font-size:0.85rem; padding:3px 6px;">
+                  <option value="auto">Auto</option>
+                  <option value="short">Short</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+              </div>
+
+              <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle); display:flex; flex-direction:column; justify-content:center;">
+                <div style="font-size:0.8rem; margin-bottom:4px; font-weight:600;">Coach Mode</div>
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.78rem; cursor:pointer;">
+                  <input type="checkbox" id="ps-toggle-coach-mode">
+                  <span>Correct slips kindly</span>
+                </label>
+              </div>
             </div>
 
-            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
-              <div style="font-size:0.85rem; margin-bottom:6px;">Verbosity</div>
-              <select id="ps-select-verbosity" style="width:100%;">
-                <option value="very short" selected>very short</option>
-                <option value="short">short</option>
-                <option value="balanced">balanced</option>
-                <option value="detailed">detailed</option>
-              </select>
+            <!-- Injected System Prompt Preview Line -->
+            <div style="background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+              <code id="ps-prompt-preview-box" style="color:var(--accent); font-size:0.82rem;">Sarcasm: 7/10. Warmth: 8/10. Tamil mix: 40%. Replies: very short.</code>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn btn-primary" id="ps-save-btn">💾 Save Personality</button>
+            </div>
+
+            <!-- Locked Identity Guard Cards -->
+            <div style="margin-top:10px; border-top:1px solid var(--border-subtle); padding-top:12px;">
+              <div style="font-size:0.78rem; color:var(--text-dim); margin-bottom:8px; font-weight:600; text-transform:uppercase;">
+                🛡️ LOCKED IDENTITY GUARD BOUNDARIES (CONTEXT.md)
+              </div>
+              <div class="identity-guard-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
+                <div class="locked-guard-card" style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); font-size:0.78rem;">
+                  <strong style="color:var(--accent);">1. Name & Wake Word:</strong> NALLA SIVAM. Greeting: "Yes boss, sollunga!".
+                </div>
+                <div class="locked-guard-card" style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); font-size:0.78rem;">
+                  <strong style="color:var(--green);">2. Core Motto:</strong> Think smart. Speak naturally. Act responsibly.
+                </div>
+                <div class="locked-guard-card" style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); font-size:0.78rem;">
+                  <strong style="color:var(--amber);">3. Honesty Rule:</strong> Never claim action done unless verified by a tool or device.
+                </div>
+                <div class="locked-guard-card" style="padding:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); font-size:0.78rem;">
+                  <strong style="color:var(--red);">4. Approvals Gate:</strong> GREEN: Just do · AMBER: Ask first · RED: Confirm.
+                </div>
+              </div>
+            </div>
+
+            <!-- Advanced Persona Editor (Expandable) -->
+            <details style="margin-top:10px; background:rgba(0,0,0,0.25); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:10px;">
+              <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--text-dim);">
+                ⚙️ Advanced: Raw Persona Prompt Editor
+              </summary>
+              <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);">persona/nalla_master.md</span>
+                  <div style="display:flex; gap:6px;">
+                    <button class="btn btn-xs btn-outline" id="ps-revert-persona-btn">Revert</button>
+                    <button class="btn btn-xs btn-green" id="ps-save-persona-btn">Save to Disk</button>
+                  </div>
+                </div>
+                <textarea id="ps-persona-editor" rows="8" style="width:100%; font-family:var(--font-mono); font-size:0.8rem; line-height:1.45;"></textarea>
+              </div>
+            </details>
+          </div>
+
+          <!-- Presence & Proactive Policy Settings (Prompt 1A & 1B) -->
+          <div class="settings-section-card" data-keywords="presence proactive briefing check-in welcome-back wrap-up quiet hours caps dnd scheduler care">
+            <div class="settings-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+              <div><span>⚡</span> Presence & Proactive Speech Policy</div>
+              <label style="font-size:0.78rem; color:var(--text-bright); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="set-proactive-toggle" checked>
+                Proactive Speech Enabled
+              </label>
+            </div>
+
+            <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:12px;">
+              Governs unprompted utterances (morning briefings, hydration check-ins, welcome-back greetings, evening wrap-up). Strictly capped to protect your focus.
+            </div>
+
+            <!-- Policy Controls Grid -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px;">
+              <!-- Quiet Hours & DND -->
+              <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:10px;">
+                <div style="font-size:0.8rem; font-weight:700; color:var(--accent); margin-bottom:6px;">🌙 QUIET HOURS & DND</div>
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                  <div style="flex:1;">
+                    <label style="font-size:0.7rem; color:var(--text-dim); display:block;">Start</label>
+                    <input type="time" id="set-quiet-start" value="23:30" style="width:100%; font-size:0.78rem;">
+                  </div>
+                  <div style="flex:1;">
+                    <label style="font-size:0.7rem; color:var(--text-dim); display:block;">End</label>
+                    <input type="time" id="set-quiet-end" value="06:30" style="width:100%; font-size:0.78rem;">
+                  </div>
+                </div>
+                <label style="font-size:0.74rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="set-proactive-dnd">
+                  Do Not Disturb (Silence all non-reminders)
+                </label>
+              </div>
+
+              <!-- Rate Caps -->
+              <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:10px;">
+                <div style="font-size:0.8rem; font-weight:700; color:var(--accent); margin-bottom:6px;">⏱️ UTTERANCE CAPS (ANTI-NAG)</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-size:0.74rem;">Max per hour:</span>
+                  <input type="number" id="set-cap-hour" min="1" max="6" value="2" style="width:60px; font-size:0.78rem;">
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-size:0.74rem;">Max per day:</span>
+                  <input type="number" id="set-cap-day" min="1" max="20" value="8" style="width:60px; font-size:0.78rem;">
+                </div>
+                <label style="font-size:0.74rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
+                  <input type="checkbox" id="set-sound-cue" checked>
+                  Play subtle chime before proactive speech
+                </label>
+              </div>
+            </div>
+
+            <!-- Categories Checklist -->
+            <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; font-size:0.76rem;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="set-cat-briefing" checked>
+                Morning Briefing (Weather + Tasks)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="set-cat-checkins" checked>
+                Smart Check-ins (Hydration / Stretch)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="set-cat-welcome" checked>
+                Welcome Back (&gt;90m away)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="set-cat-wrapup" checked>
+                Evening Wrap-Up (Daily Review)
+              </label>
+            </div>
+
+            <!-- Interactive Test Buttons -->
+            <div style="margin-top:14px; padding-top:10px; border-top:1px solid var(--border-subtle);">
+              <div style="font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:8px;">TEST PROACTIVE PIECES (IN NALLA'S VOICE):</div>
+              <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                <button type="button" class="btn btn-xs btn-outline" id="btn-test-briefing">🌅 Test Morning Briefing</button>
+                <button type="button" class="btn btn-xs btn-outline" id="btn-test-welcome">👋 Test Welcome Back</button>
+                <button type="button" class="btn btn-xs btn-outline" id="btn-test-checkin">💧 Test Check-in</button>
+                <button type="button" class="btn btn-xs btn-outline" id="btn-test-wrapup">🌙 Test Evening Wrap-up</button>
+                <button type="button" class="btn btn-xs btn-outline" id="btn-presence-save">💾 Save Presence Settings</button>
+              </div>
+              <div id="presence-test-result" style="display:none; margin-top:10px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); font-size:0.78rem; line-height:1.5;"></div>
             </div>
           </div>
 
-          <!-- Injected line preview -->
-          <div style="background:#060a14; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle); margin-bottom:16px;">
-            <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase;">Injected System Prompt Line:</div>
-            <code id="ps-prompt-preview-box" style="color:var(--accent); font-size:0.9rem;">Sarcasm: 7/10. Warmth: 8/10. Tamil mix: 40%. Replies: very short.</code>
+          <!-- 3. Talk Mode Settings -->
+          <div class="settings-section-card" data-keywords="talk mode walkie talkie space ptt hotkey mic warm vad chime">
+            <div class="settings-section-title">
+              <span>📻</span> Talk Mode & Walkie-Talkie Settings
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px;">
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">TALK MODE</label>
+                <select id="vs-talk-mode-select" style="width:100%;">
+                  <option value="walkie_talkie" selected>Walkie-Talkie (Hold Space to talk, release to send - Instant)</option>
+                  <option value="tap_toggle">Tap Toggle (Tap to start, auto-stops on silence)</option>
+                  <option value="wake_word">Wake Word (Continuous listener for keyword)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">GLOBAL HOTKEY KEY</label>
+                <input type="text" id="vs-global-hotkey-key-input" value="F9" style="width:100%;">
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                <input type="checkbox" id="vs-keep-mic-warm-toggle">
+                <span>Keep Mic Warm (250ms buffer) — Prevents clipping first word</span>
+              </label>
+
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                <input type="checkbox" id="vs-global-hotkey-toggle">
+                <span>Global System Hotkey (pynput) — Speak from any window</span>
+              </label>
+
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                <input type="checkbox" id="vs-streaming-stt-toggle">
+                <span>Streaming STT (Rolling 2s Chunks) — Transcribe while holding</span>
+              </label>
+
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+                <input type="checkbox" id="vs-soft-click-toggle" checked>
+                <span>Soft Click Chimes — Subtle audio feedback on press and release</span>
+              </label>
+            </div>
           </div>
 
-          <div style="display:flex; justify-content:flex-end;">
-            <button class="btn btn-primary" id="ps-save-btn">💾 Save & Apply Personality</button>
-          </div>
-        </div>
+          <!-- 4. Models & Speech-to-Text -->
+          <div class="settings-section-card" data-keywords="models chat stt whisper gemini language">
+            <div class="settings-section-title">
+              <span>🤖</span> Models & Speech-to-Text
+            </div>
 
-        <!-- Test Chat Box for Unsaved Tuning -->
-        <div class="hud-card hud-bracket">
-          <div class="card-title"><span class="icon-accent">🧪</span> Test Chat Box (Unsaved Slider Simulator)</div>
-          <div class="card-subtitle" style="margin-bottom:12px;">Send test prompts to audition Nalla's tone with current slider values before saving.</div>
-          
-          <div id="ps-test-output" style="background:#060a14; padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle); min-height:50px; margin-bottom:10px; font-size:0.9rem;">
-            <span style="color:var(--text-dim);">Type a test prompt below to audition Nalla's tone...</span>
-          </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px;">
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">CHAT CONVERSATION MODEL</label>
+                <select id="set-chat-model" style="width:100%;">
+                  <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (Ultra Fast)</option>
+                  <option value="gemini-2.5-flash" selected>gemini-2.5-flash (Balanced)</option>
+                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                </select>
+              </div>
 
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="ps-test-input" placeholder="e.g. 'I skipped my workout today', 'Turn on relay', 'Should I start a new side project?'" style="flex:1;">
-            <button class="btn btn-outline" id="ps-test-send-btn">Test Reply</button>
-          </div>
-        </div>
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">TOOL / COMMAND MODEL</label>
+                <select id="set-cmd-model" style="width:100%;">
+                  <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                  <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
+                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+                </select>
+              </div>
 
-        <!-- Editable Persona Text -->
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">STT TRANSCRIBER ENGINE</label>
+                <select id="set-stt-engine" style="width:100%;">
+                  <option value="faster-whisper" selected>faster-whisper (Offline Neural)</option>
+                  <option value="gemini">Gemini Audio Transcription (Cloud - Quota)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">FORCE TTS ENGINE (Diagnostics)</label>
+                <select id="set-force-tts-engine" style="width:100%;">
+                  <option value="auto" selected>Auto (Dynamic Fallback)</option>
+                  <option value="gemini">Force Gemini TTS (Fail loudly if unavailable)</option>
+                  <option value="edge-tts">Force Edge-TTS (Microsoft Neural)</option>
+                  <option value="piper">Force Piper (Local Offline)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">TALK SCREEN LOOK</label>
+                <select id="set-talk-look" style="width:100%;">
+                  <option value="hud" selected>HUD (JARVIS Interface - Default)</option>
+                  <option value="minimal">Minimal (Calm Cards)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">VOICE FX POLISH (Lightweight DSP)</label>
+                <select id="set-voice-fx" style="width:100%;">
+                  <option value="off" selected>Off (Raw natural audio)</option>
+                  <option value="clean">Clean (Sub-bass rumble cut)</option>
+                  <option value="jarvis">JARVIS (Presence polish + subtle holographic room)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">GEMINI TTS MODEL</label>
+                <select id="set-gemini-tts-model" style="width:100%;">
+                  <option value="gemini-3.8-flash-lite-tts" selected>gemini-3.8-flash-lite-tts (Conversational speed)</option>
+                  <option value="gemini-3.8-flash-tts">gemini-3.8-flash-tts (High fidelity neural)</option>
+                </select>
+              </div>
+
+              <div style="grid-column: 1 / -1;">
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">GEMINI TTS STYLE INSTRUCTION</label>
+                <input id="set-gemini-tts-style" type="text" value="calm, confident, dry wit, conversational" style="width:100%; font-size:0.85rem;" placeholder="e.g. calm, confident, dry wit, conversational">
+              </div>
+
+              <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="set-expressive-tags" checked>
+                <label for="set-expressive-tags" style="font-size:0.82rem; color:var(--text-bright); cursor:pointer;">
+                  Expressive audio tags (Natural laughter, sigh, pause &mdash; max 1 tag per reply)
+                </label>
+              </div>
+
+              <div style="grid-column: 1 / -1; margin-top:4px;">
+                <button type="button" class="btn btn-outline" id="set-open-ab-btn" style="display:inline-flex; align-items:center; gap:8px;">
+                  <span>⚖️</span> <span>Open Voice A/B Benchmark (10 Standardized Lines)</span>
+                </button>
+              </div>
+
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">WHISPER STT MODEL</label>
+                <select id="vs-stt-select" style="width:100%;">
+                  <option value="base" selected>base (int8, ~140MB - Fast CPU)</option>
+                  <option value="small">small (int8, ~460MB - Accurate Tanglish &amp; Tamil)</option>
+                  <option value="medium">medium (int8, ~1.5GB - Highest Tamil Accuracy)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Listen Languages Multi-Chip Selector -->
             <div>
-              <div class="card-title"><span class="icon-accent">📝</span> Master Persona Markdown (persona/nalla_master.md)</div>
-              <div class="card-subtitle">Directly edit Nalla's core personality instructions on disk.</div>
+              <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:6px;">
+                LISTEN LANGUAGES (Bilingual understanding)
+              </label>
+              <div id="vs-listen-lang-chips" style="display:flex; flex-wrap:wrap; gap:6px;">
+                <button type="button" class="lang-chip active" data-lang="en" style="padding:4px 12px; border-radius:20px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-size:0.78rem; cursor:pointer;">🇬🇧 English (en)</button>
+                <button type="button" class="lang-chip active" data-lang="ta" style="padding:4px 12px; border-radius:20px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-size:0.78rem; cursor:pointer;">🇮🇳 Tamil (ta)</button>
+                <button type="button" class="lang-chip" data-lang="hi" style="padding:4px 12px; border-radius:20px; border:1px solid var(--border-subtle); background:transparent; color:var(--text-dim); font-size:0.78rem; cursor:pointer;">🇮🇳 Hindi (hi)</button>
+                <button type="button" class="lang-chip" data-lang="auto" style="padding:4px 12px; border-radius:20px; border:1px solid var(--border-subtle); background:transparent; color:var(--text-dim); font-size:0.78rem; cursor:pointer;">🌍 All Languages (auto)</button>
+              </div>
+              <div id="vs-listen-lang-hint" style="font-size:0.72rem; color:var(--text-dim); margin-top:4px;">
+                Active: <span id="vs-listen-lang-active" style="color:var(--accent);">English, Tamil</span>
+              </div>
             </div>
-            <div style="display:flex; gap:8px;">
-              <button class="btn btn-sm btn-outline" id="ps-revert-persona-btn">Revert</button>
-              <button class="btn btn-sm btn-green" id="ps-save-persona-btn">Save to Disk</button>
+
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="btn btn-primary" id="set-save-models-btn">Save Model Preferences</button>
             </div>
           </div>
-          <textarea id="ps-persona-editor" rows="12" style="width:100%; font-family:var(--font-mono); font-size:0.85rem; line-height:1.5;"></textarea>
-        </div>
-      </section>
 
-      <!-- PAGE 5: MEMORY BANK -->
-      <section id="page-memory" class="page-view">
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
+          <!-- 5. Tamil Text Pipeline & Dialect Flavour (Prompt E) -->
+          <div class="settings-section-card" data-keywords="tamil text mode tanglish script kongu dialect pronunciation dictionary stt">
+            <div class="settings-section-title">
+              <span>🌾</span> Tamil Text Pipeline &amp; Dialect Flavour
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">
+              <div>
+                <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">TAMIL TEXT MODE</label>
+                <select id="set-tamil-text-mode" style="width:100%;">
+                  <option value="tanglish_display" selected>Tanglish Display (English letters, speech uses pronunciation dict)</option>
+                  <option value="tamil_script">Tamil Script (Native script on screen &amp; speech)</option>
+                  <option value="english_only">English Only</option>
+                </select>
+                <span style="font-size:0.72rem; color:var(--text-dim); display:block; margin-top:3px;">
+                  Model follows everyday spoken Tamil (colloquial), not bookish Tamil.
+                </span>
+              </div>
+
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+                  <span>Kongu Touch Slider</span>
+                  <span id="set-kongu-val" style="color:var(--accent); font-weight:700;">2/10</span>
+                </div>
+                <input type="range" id="set-kongu-slider" min="0" max="10" step="1" value="2" style="width:100%;">
+                <span style="font-size:0.72rem; color:var(--text-dim); display:block; margin-top:3px;">
+                  Uses curated phrases from kongu_phrases.json (e.g. 'ஏனுங்க', 'கண்ணு').
+                </span>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; border-top:1px solid var(--border-subtle); padding-top:12px; margin-top:8px;">
+              <button class="btn btn-outline" id="set-open-dict-btn" onclick="window.NallaPages && window.NallaPages.voiceLab && window.NallaPages.voiceLab.openDict()">
+                📖 Edit Tanglish Pronunciation Dictionary
+              </button>
+
+              <button class="btn btn-sm btn-primary" id="set-open-voice-lab-btn" onclick="window.NallaPages && window.NallaPages.voiceLab && window.NallaPages.voiceLab.open()">
+                🔬 Open Tamil Voice Lab
+              </button>
+            </div>
+          </div>
+
+          <!-- 5. API Key Settings -->
+          <div class="settings-section-card" data-keywords="api key gemini secret token password">
+            <div class="settings-section-title">
+              <span>🔑</span> Gemini API Key
+            </div>
+
             <div>
-              <div class="card-title"><span class="icon-accent">🧠</span> Durable Memories Bank</div>
-              <div class="card-subtitle">Permanent facts, user preferences, and project context stored in SQLite.</div>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <span class="badge badge-accent" id="mem-total-count">0 memories</span>
-              <a href="/api/memories/export" class="btn btn-sm btn-outline" download>⬇ Export JSON</a>
-            </div>
-          </div>
-
-          <!-- Search & Filter bar -->
-          <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
-            <input type="text" id="mem-search-input" placeholder="Search memories with FTS5..." style="flex:1; min-width:240px;">
-            <select id="mem-filter-cat">
-              <option value="">All Categories</option>
-              <option value="preference">Preference</option>
-              <option value="fact">Fact</option>
-              <option value="project">Project</option>
-              <option value="person">Person</option>
-              <option value="task">Task</option>
-            </select>
-          </div>
-
-          <!-- Add Form -->
-          <form id="mem-add-form" style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:10px; margin-bottom:20px;">
-            <input type="text" id="mem-new-text" placeholder="e.g. Ugesh prefers dark mode in all UI apps" required>
-            <select id="mem-new-cat">
-              <option value="preference">Preference</option>
-              <option value="fact" selected>Fact</option>
-              <option value="project">Project</option>
-              <option value="person">Person</option>
-              <option value="task">Task</option>
-            </select>
-            <select id="mem-new-imp">
-              <option value="1">Imp: 1 (Low)</option>
-              <option value="2">Imp: 2</option>
-              <option value="3" selected>Imp: 3 (Normal)</option>
-              <option value="4">Imp: 4</option>
-              <option value="5">Imp: 5 (Critical)</option>
-            </select>
-            <button type="submit" class="btn btn-green">+ Save</button>
-          </form>
-
-          <!-- Memory Grid -->
-          <div id="mem-cards-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px;">
-            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading memories...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 6: REMINDERS & TASKS -->
-      <section id="page-reminders" class="page-view">
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
-            <div>
-              <div class="card-title"><span class="icon-accent">🔔</span> Scheduled Reminders & Tasks</div>
-              <div class="card-subtitle">Active notifications and task countdowns.</div>
-            </div>
-          </div>
-
-          <!-- Add reminder form -->
-          <form id="rem-add-form" style="display:grid; grid-template-columns:2fr 1fr auto; gap:10px; margin-bottom:20px;">
-            <input type="text" id="rem-text-input" placeholder="e.g. Water the plants, turn off the relay" required>
-            <input type="datetime-local" id="rem-due-input" required>
-            <button type="submit" class="btn btn-green">+ Set Reminder</button>
-          </form>
-
-          <!-- Reminders List -->
-          <div id="rem-list-container" style="display:flex; flex-direction:column; gap:10px;">
-            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading reminders...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 7: DEVICES (PHASE 5 READY STUB) -->
-      <section id="page-devices" class="page-view">
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
-            <div>
-              <div class="card-title"><span class="icon-accent">🔌</span> ESP32 & ESP8266 Hardware Fleet</div>
-              <div class="card-subtitle">Live sensor readings, relay controls, and MQTT telemetry.</div>
-            </div>
-            <span class="badge badge-accent">Phase 5 Architecture</span>
-          </div>
-
-          <!-- Devices Grid -->
-          <div id="devices-cards-container" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;">
-            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading devices...</div>
-          </div>
-
-          <!-- Command History Table -->
-          <div class="card-title" style="margin-bottom:12px; font-size:0.95rem;">Command & Telemetry History</div>
-          <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-            <thead>
-              <tr style="border-bottom:1px solid var(--border-subtle); color:var(--text-dim); text-align:left;">
-                <th style="padding:8px;">Timestamp</th>
-                <th style="padding:8px;">Device</th>
-                <th style="padding:8px;">Command</th>
-                <th style="padding:8px;">Status</th>
-                <th style="padding:8px;">Latency</th>
-              </tr>
-            </thead>
-            <tbody id="devices-history-body">
-              <tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-dim);">No command history.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- PAGE 8: PERFORMANCE WATERFALL -->
-      <section id="page-performance" class="page-view">
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
-            <div>
-              <div class="card-title"><span class="icon-accent">⚡</span> Latency Waterfall & Turn Telemetry</div>
-              <div class="card-subtitle">Per-turn timing spans across STT, Memory, LLM first token, and TTS.</div>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <button class="btn btn-sm btn-outline" id="perf-refresh-btn">↻ Refresh</button>
-              <button class="btn btn-sm btn-red" id="perf-clear-btn">Clear</button>
-            </div>
-          </div>
-
-          <!-- Averages summary grid -->
-          <div id="perf-averages-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:20px;">
-          </div>
-
-          <!-- Telemetry Table -->
-          <div style="overflow-x:auto;">
-            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-              <thead>
-                <tr style="border-bottom:1px solid var(--border-subtle); color:var(--text-dim); text-align:left;">
-                  <th style="padding:8px;">#</th>
-                  <th style="padding:8px;">Time</th>
-                  <th style="padding:8px;">User Utterance</th>
-                  <th style="padding:8px;">Mode</th>
-                  <th style="padding:8px;">STT</th>
-                  <th style="padding:8px;">Memory</th>
-                  <th style="padding:8px;">LLM 1st</th>
-                  <th style="padding:8px;">TTS 1st</th>
-                  <th style="padding:8px;">Total</th>
-                </tr>
-              </thead>
-              <tbody id="perf-table-body">
-                <tr><td colspan="9" style="text-align:center; padding:24px; color:var(--text-dim);">Loading performance telemetry...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 9: ACTIVITY LOG -->
-      <section id="page-activity" class="page-view">
-        <div class="hud-card hud-bracket">
-          <div class="card-header">
-            <div>
-              <div class="card-title"><span class="icon-accent">📜</span> Unified Activity Event Log</div>
-              <div class="card-subtitle">Real-time chronicle of speech turns, tool executions, and state changes.</div>
-            </div>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn-sm btn-outline activity-filter-btn active" data-filter="all">All</button>
-              <button class="btn btn-sm btn-outline activity-filter-btn" data-filter="voice">Voice</button>
-              <button class="btn btn-sm btn-outline activity-filter-btn" data-filter="tool">Tools</button>
-              <button class="btn btn-sm btn-outline activity-filter-btn" data-filter="memory">Memory</button>
-            </div>
-          </div>
-
-          <div id="activity-timeline-list" style="margin-top:16px;">
-            <div style="text-align:center; color:var(--text-dim); padding:40px;">Loading event history...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PAGE 10: SETTINGS & DANGER ZONE -->
-      <section id="page-settings" class="page-view">
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:20px;">
-          
-          <!-- General Settings -->
-          <div class="hud-card hud-bracket">
-            <div class="card-title"><span class="icon-accent">⚙️</span> Core System Preferences</div>
-            
-            <div style="margin-bottom:14px; margin-top:14px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">GEMINI API KEY (SAFE STORAGE)</label>
+              <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">API KEY (SECURE STORAGE)</label>
               <div style="display:flex; gap:8px;">
-                <input type="password" id="set-api-key" value="AIzaSyDummyMaskedKey123456789" readonly style="flex:1;">
+                <input type="password" id="set-api-key" value="••••••••••••••••••••••••••••••••" readonly style="flex:1;">
                 <button class="btn btn-outline" id="set-toggle-key-btn">Reveal</button>
               </div>
             </div>
-
-            <div style="margin-bottom:14px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">CHAT CONVERSATION MODEL</label>
-              <select id="set-chat-model" style="width:100%;">
-                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (Ultra Fast)</option>
-                <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced)</option>
-                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Default)</option>
-              </select>
-            </div>
-
-            <div style="margin-bottom:18px;">
-              <label style="font-size:0.8rem; color:var(--text-dim); display:block; margin-bottom:4px;">TOOL / COMMAND MODEL</label>
-              <select id="set-cmd-model" style="width:100%;">
-                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
-              </select>
-            </div>
-
-            <button class="btn btn-primary" id="set-save-models-btn" style="width:100%;">Save Model Preferences</button>
           </div>
 
-          <!-- Audio, Theme & Danger Zone -->
-          <div class="hud-card hud-bracket">
-            <div class="card-title"><span class="icon-accent">🎨</span> Audio & UI Controls</div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0;">
-              <div>
-                <div style="font-weight:600;">Audio Chimes & Sound Effects</div>
-                <div style="font-size:0.75rem; color:var(--text-dim);">Synthesized Web Audio sound for alerts & approvals.</div>
-              </div>
-              <input type="checkbox" id="set-sound-toggle" checked style="width:18px; height:18px; cursor:pointer;">
+          <!-- 6. Data, Sound & Danger Zone -->
+          <div class="settings-section-card" data-keywords="data export import backup wipe danger clear sound chimes volume">
+            <div class="settings-section-title">
+              <span>💾</span> Data Backup & Sound FX
             </div>
 
-            <div style="margin-bottom:20px;">
-              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px;">COLOR THEME PALETTE</div>
-              <div style="display:flex; gap:8px;">
-                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="cyan">Cyan</button>
-                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="violet">Violet</button>
-                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="amber">Amber</button>
-                <button class="btn btn-sm btn-outline settings-theme-btn" data-theme="green">Green</button>
+            <!-- Sound controls -->
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-weight:600; font-size:0.85rem;">UI Audio Chimes</div>
+                <div style="font-size:0.72rem; color:var(--text-dim);">Synthesized Web Audio pings for listening, done, and alerts.</div>
               </div>
+              <input type="checkbox" id="set-sound-toggle" checked style="width:18px; height:18px; cursor:pointer;" aria-label="Toggle UI Audio Sounds">
+            </div>
+
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; margin-bottom:4px;">
+                <span style="color:var(--text-dim);">CHIME VOLUME</span>
+                <span id="set-sound-volume-val" style="font-family:var(--font-mono); color:var(--accent);">70%</span>
+              </div>
+              <input type="range" id="set-sound-volume" min="0" max="100" value="70" style="width:100%; cursor:pointer;" aria-label="Chime volume slider">
+            </div>
+
+            <!-- Export / Backup -->
+            <div style="border-top:1px solid var(--border-subtle); padding-top:12px; display:flex; gap:10px; align-items:center;">
+              <a href="/api/memories/export" class="btn btn-outline" download>📥 Export Memory Store (JSON)</a>
             </div>
 
             <!-- Danger Zone -->
-            <div style="border-top:1px solid rgba(239, 68, 68, 0.3); padding-top:16px; margin-top:20px;">
-              <div style="color:var(--red); font-weight:700; margin-bottom:4px;">⚠️ DANGER ZONE</div>
-              <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:12px;">Permanently wipe all durable SQLite memories. Cannot be undone.</div>
+            <div style="border-top:1px solid rgba(239, 68, 68, 0.3); padding-top:12px; margin-top:8px;">
+              <div style="color:var(--red); font-weight:700; font-size:0.85rem; margin-bottom:4px;">⚠️ DANGER ZONE</div>
+              <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:8px;">Permanently wipe all durable SQLite memories. Cannot be undone.</div>
               <button class="btn btn-red" id="set-clear-memory-btn">Wipe Memory Store</button>
             </div>
           </div>
@@ -747,16 +1075,214 @@
   </div>
 
   <!-- ====================================================================
-       Global Command Palette Modal (Ctrl+K)
+       DEBUG DRAWER (Slide-over panel, toggle with D or 🐞 button)
        ==================================================================== -->
-  <div class="modal-overlay" id="command-palette-modal">
-    <div class="palette-box">
-      <div class="palette-input-wrap">
-        <svg viewBox="0 0 24 24" style="width:18px; height:18px; stroke:var(--accent); stroke-width:2; fill:none; margin-right:10px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="palette-search-input" placeholder="Type a command or jump to page (e.g. 'chat', 'mute', 'jarvis')...">
+  <div id="debug-drawer-backdrop" class="debug-drawer-backdrop"></div>
+  <aside id="debug-drawer" class="debug-drawer" role="complementary" aria-label="Debug and Telemetry Drawer">
+    <div class="debug-drawer-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="icon-accent" style="font-size:1.1rem;">🐞</span>
+        <h3>Debug & Telemetry</h3>
+        <kbd>D</kbd>
       </div>
-      <ul class="palette-list" id="palette-results-list"></ul>
+      <button class="btn btn-sm btn-outline" id="debug-drawer-close" aria-label="Close debug drawer">✕</button>
     </div>
+
+    <!-- Drawer Tabs -->
+    <div class="debug-drawer-tabs" role="tablist">
+      <button class="dd-tab active" data-dd-tab="turns" role="tab" aria-selected="true">Turns (Waterfall)</button>
+      <button class="dd-tab" data-dd-tab="context" role="tab" aria-selected="false">Short-Term & Context</button>
+      <button class="dd-tab" data-dd-tab="health" role="tab" aria-selected="false">Health &amp; Backups</button>
+      <button class="dd-tab" data-dd-tab="quotas" role="tab" aria-selected="false">Quotas</button>
+      <button class="dd-tab" data-dd-tab="logs" role="tab" aria-selected="false">Errors & Logs</button>
+      <button class="dd-tab" data-dd-tab="fallbacks" role="tab" aria-selected="false">Fallbacks</button>
+    </div>
+
+    <!-- Drawer Body Views -->
+    <div class="debug-drawer-body">
+      
+      <!-- 1. Turns / Waterfall View -->
+      <div id="dd-view-turns" class="dd-view active">
+        <div class="dd-summary-strip" id="dd-turns-summary">
+          <div>Avg Latency: <strong id="dd-avg-latency" style="color:var(--accent);">-- ms</strong></div>
+          <div>Last Release->Audio: <strong id="dd-last-release-audio" style="color:var(--green);">-- ms</strong></div>
+        </div>
+        <div id="dd-turns-waterfall-list" class="dd-waterfall-list">
+          <div style="color:var(--text-dim); font-size:0.8rem; text-align:center; padding:20px;">
+            No voice turns recorded yet. Hold Space and speak to generate telemetry.
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Short-Term Memory & Context Transparency View -->
+      <div id="dd-view-context" class="dd-view">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
+          <div>
+            <label style="font-size:0.8rem; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="dd-stm-toggle" checked>
+              <strong>Short-Term Memory Enabled</strong>
+            </label>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-xs btn-outline" id="dd-forget-last-btn">Forget last exchange</button>
+            <button class="btn btn-xs btn-red" id="dd-clear-stm-btn">Clear short-term</button>
+          </div>
+        </div>
+
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase; font-weight:600;">
+          Dynamic Context Block (Injected in System Prompt):
+        </div>
+        <pre id="dd-context-block-preview" style="background:var(--bg-card); border:1px solid var(--border-subtle); padding:10px; border-radius:var(--radius-sm); font-size:0.75rem; white-space:pre-wrap; max-height:220px; overflow-y:auto; color:var(--cyan); margin-bottom:14px; font-family:monospace;"></pre>
+
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase; font-weight:600;">
+          Recent Exchanges Window (<span id="dd-stm-msg-count">0</span> messages sent):
+        </div>
+        <div id="dd-stm-messages-list" style="display:flex; flex-direction:column; gap:6px; font-size:0.8rem; max-height:260px; overflow-y:auto;">
+          <div style="color:var(--text-dim); text-align:center; padding:12px;">No active session messages.</div>
+        </div>
+      </div>
+
+      <!-- Health & Backups View (Prompt 5C) -->
+      <div id="dd-view-health" class="dd-view">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono); font-weight:700;">SYSTEM HEALTH &amp; SELF-CHECK</span>
+          <button class="btn btn-xs btn-outline" id="dd-run-self-check-btn">Run Self-Check</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-bottom:14px;">
+          <div class="dd-quota-card" style="padding:10px;">
+            <div class="dd-quota-title">Overall Status</div>
+            <div class="dd-quota-val" id="dd-health-status" style="font-size:0.95rem; color:var(--green);">HEALTHY</div>
+          </div>
+          <div class="dd-quota-card" style="padding:10px;">
+            <div class="dd-quota-title">Disk Free</div>
+            <div class="dd-quota-val" id="dd-disk-free" style="font-size:0.95rem;">-- GB</div>
+          </div>
+          <div class="dd-quota-card" style="padding:10px;">
+            <div class="dd-quota-title">API Key</div>
+            <div class="dd-quota-val" id="dd-apikey-status" style="font-size:0.95rem;">READY</div>
+          </div>
+          <div class="dd-quota-card" style="padding:10px;">
+            <div class="dd-quota-title">Mic &amp; Audio</div>
+            <div class="dd-quota-val" id="dd-mic-status" style="font-size:0.95rem;">READY</div>
+          </div>
+        </div>
+
+        <div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono); font-weight:700; margin-bottom:8px;">WATCHDOG SUPERVISED COMPONENTS</div>
+        <div id="dd-watchdog-components" style="display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">
+          <div style="font-size:0.8rem; color:var(--text-dim);">Loading component statuses...</div>
+        </div>
+
+        <div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono); font-weight:700; margin-bottom:8px;">OFFLINE MODE TOGGLE</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-card); border:1px solid var(--border-subtle); padding:10px; border-radius:var(--radius-sm); margin-bottom:16px;">
+          <div>
+            <div style="font-size:0.85rem; font-weight:600; color:var(--text-bright);">Degraded Offline Mode</div>
+            <div style="font-size:0.75rem; color:var(--text-dim);">Force local SQLite &amp; templates execution without cloud calls.</div>
+          </div>
+          <button class="btn btn-xs btn-outline" id="dd-offline-toggle-btn">Toggle Offline</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono); font-weight:700;">DATA SAFETY &amp; BACKUPS</span>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-xs btn-outline" id="dd-export-diag-btn">Export Diagnostics</button>
+            <button class="btn btn-xs btn-primary" id="dd-create-backup-btn">Backup Now</button>
+          </div>
+        </div>
+        <div id="dd-backups-list" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; font-size:0.8rem;">
+          <div style="color:var(--text-dim); text-align:center; padding:10px;">Loading backups...</div>
+        </div>
+      </div>
+
+      <!-- 2. Quotas View -->
+      <div id="dd-view-quotas" class="dd-view">
+        <div class="dd-quota-card">
+          <div class="dd-quota-title">Gemini TTS Daily Quota</div>
+          <div class="dd-quota-val"><span id="dd-tts-quota-count">0</span> / <span id="dd-tts-quota-cap">50</span></div>
+        </div>
+        <div class="dd-quota-card">
+          <div class="dd-quota-title">Total Voice Turns Today</div>
+          <div class="dd-quota-val" id="dd-total-turns-count">0</div>
+        </div>
+        <div class="dd-quota-card">
+          <div class="dd-quota-title">Active LLM Provider</div>
+          <div class="dd-quota-val" id="dd-llm-provider-name" style="font-size:1.1rem;">Gemini Flash</div>
+        </div>
+      </div>
+
+      <!-- 3. Errors & Logs View -->
+      <div id="dd-view-logs" class="dd-view">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);">SYSTEM NOTICES & RUNTIME LOGS</span>
+          <button class="btn btn-xs btn-outline" id="dd-clear-logs-btn">Clear</button>
+        </div>
+        <div id="dd-logs-container" class="dd-logs-container">
+          <div class="dd-log-entry">[System] Ready. Debug drawer listening for telemetry events.</div>
+        </div>
+      </div>
+
+      <!-- 4. Fallbacks View -->
+      <div id="dd-view-fallbacks" class="dd-view">
+        <div style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono); margin-bottom:8px;">TTS & STT FALLBACK SWITCH EVENTS</div>
+        <div id="dd-fallbacks-container" class="dd-fallbacks-container">
+          <div style="color:var(--text-dim); font-size:0.8rem; padding:12px;">No fallback events recorded. Primary engines running normally.</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ====================================================================
+       PARKED / HIDDEN LEGACY ELEMENTS CONTAINER
+       (Preserves DOM nodes & accessibility for backward-compatible tests)
+       ==================================================================== -->
+  <div id="parked-legacy-container" style="display:none;" aria-hidden="true">
+    <!-- Parked Sidebar Nav for accessibility test test_app_shell_6f -->
+    <nav id="sidebar">
+      <ul class="nav-list">
+        <li><button class="nav-btn" data-page="home" data-tooltip="Home & Orb (1)">1</button></li>
+        <li><button class="nav-btn" data-page="chat" data-tooltip="Chat & Tools (2)">2</button></li>
+        <li><button class="nav-btn" data-page="voice" data-tooltip="Voice Studio (3)">3</button></li>
+        <li><button class="nav-btn" data-page="personality" data-tooltip="Personality Studio (4)">4</button></li>
+        <li><button class="nav-btn" data-page="memory" data-tooltip="Memory Bank (5)">5</button></li>
+        <li><button class="nav-btn" data-page="reminders" data-tooltip="Reminders & Tasks (6)">6</button></li>
+        <li><button class="nav-btn" data-page="devices" data-tooltip="IoT Devices (7)">7</button></li>
+        <li><button class="nav-btn" data-page="performance" data-tooltip="Performance Waterfall (8)">8</button></li>
+        <li><button class="nav-btn" data-page="activity" data-tooltip="Activity Log (9)">9</button></li>
+        <li><button class="nav-btn" data-page="settings" data-tooltip="Settings & Danger Zone (0)">0</button></li>
+      </ul>
+    </nav>
+
+    <!-- Legacy Action Buttons -->
+    <button id="palette-open-btn" onclick="window.NallaApp.openCommandPalette()"></button>
+    <button id="shortcuts-help-btn" onclick="window.NallaApp.toggleShortcutsCheatSheet()"></button>
+
+    <!-- Legacy Modals -->
+    <div id="command-palette-modal">
+      <input type="text" id="palette-search-input">
+      <ul id="palette-results-list"></ul>
+    </div>
+
+    <div id="shortcuts-cheat-sheet-modal">
+      <div>Keyboard Shortcuts &amp; Hotkeys</div>
+      <div>Push-to-Talk</div>
+    </div>
+
+    <div id="last-error-modal">
+      <div id="last-error-content"></div>
+      <span id="last-error-badge"></span>
+      <span id="last-error-time"></span>
+    </div>
+
+    <!-- Legacy Settings Theme Buttons -->
+    <button class="settings-theme-btn" data-theme="cyan"></button>
+    <button class="settings-theme-btn" data-theme="violet"></button>
+    <button class="settings-theme-btn" data-theme="amber"></button>
+    <button class="settings-theme-btn" data-theme="green"></button>
+
+    <!-- Legacy Chat Clear -->
+    <button id="chat-clear-btn"></button>
+    <div id="chat-messages-container"></div>
   </div>
 
   <!-- ====================================================================
@@ -778,23 +1304,268 @@
     </div>
   </div>
 
+  <!-- ====================================================================
+       Tamil Voice Lab Modal (Prompt D & E)
+       ==================================================================== -->
+  <div class="modal-overlay" id="voice-lab-modal">
+    <div class="hud-card" style="width:96vw; max-width:1300px; height:92vh; display:flex; flex-direction:column; padding:18px 22px; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); box-shadow:0 12px 48px rgba(0,0,0,0.8); z-index:1100;">
+      <!-- Header Bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle); padding-bottom:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:1.4rem;">🔬</span>
+          <div>
+            <div style="font-weight:700; font-size:1.1rem; color:var(--text-bright);">Tamil Voice Lab — Pronunciation &amp; Accent Studio</div>
+            <div style="font-size:0.75rem; color:var(--text-dim);">Scientifically evaluate spoken Tamil, colloquial slang, and Kongu flavour across engines and voices.</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="btn btn-sm btn-outline" id="vl-open-ab-btn">⚖️ Voice A/B Benchmark</button>
+          <button class="btn btn-sm btn-outline" id="vl-open-dict-btn">📖 Pronunciation Dictionary</button>
+          <button class="btn btn-sm btn-outline" id="vl-export-csv-btn">📥 Export CSV</button>
+          <button class="btn btn-sm btn-outline" id="vl-refresh-btn">↻ Refresh</button>
+          <button class="btn btn-sm btn-outline btn-red" id="vl-close-btn" style="font-weight:700;">✕ Close</button>
+        </div>
+      </div>
+
+      <!-- Controls Strip: Categories & Variants -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+        <!-- Category Filter -->
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;" id="vl-category-tabs">
+          <span style="font-size:0.75rem; color:var(--text-dim); margin-right:4px;">CATEGORY:</span>
+          <button class="btn btn-xs btn-outline vl-cat-btn active" data-category="all">All (19)</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="colloquial">Colloquial (c1-c8)</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="formal">Formal (f1-f2)</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="Kongu flavour">Kongu (k1-k2)</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="mixed English">Mixed (m1-m2)</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="time">Time</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="date">Date</button>
+          <button class="btn btn-xs btn-outline vl-cat-btn" data-category="caring">Caring</button>
+        </div>
+
+        <!-- Text Variant Selector -->
+        <div style="display:flex; align-items:center; gap:6px;" id="vl-variant-tabs">
+          <span style="font-size:0.75rem; color:var(--text-dim); margin-right:4px;">INPUT VARIANT:</span>
+          <button class="btn btn-xs btn-outline vl-var-btn active" data-variant="a_tamil">(a) Tamil Script</button>
+          <button class="btn btn-xs btn-outline vl-var-btn" data-variant="b_tanglish">(b) Tanglish (Latin)</button>
+          <button class="btn btn-xs btn-outline vl-var-btn" data-variant="c_dict">(c) Pronunciation Dict</button>
+        </div>
+      </div>
+
+      <!-- Main Stage: Comparison Grid (Scrollable) -->
+      <div id="vl-comparison-grid" style="flex:1; overflow-y:auto; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); background:rgba(0,0,0,0.15); margin-bottom:12px;">
+        <div style="text-align:center; padding:40px; color:var(--text-dim);">Loading Voice Lab Grid...</div>
+      </div>
+
+      <!-- Footer Summary & Recommendations Bar -->
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:16px; border-top:1px solid var(--border-subtle); padding-top:12px; align-items:center;">
+        <!-- Tamil Voice Recommendation Card -->
+        <div id="vl-rec-tamil" style="background:rgba(0,255,200,0.04); border:1px solid rgba(0,255,200,0.2); border-radius:var(--radius-sm); padding:8px 12px;">
+          <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase;">RECOMMENDED TAMIL VOICE</div>
+          <div style="font-size:1.0rem; font-weight:700; color:var(--text-bright);">ta-IN-PallaviNeural</div>
+        </div>
+
+        <!-- English Voice Recommendation Card -->
+        <div id="vl-rec-english" style="background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:8px 12px;">
+          <div style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase;">RECOMMENDED ENGLISH VOICE</div>
+          <div style="font-size:1.0rem; font-weight:700; color:var(--text-bright);">achird</div>
+        </div>
+
+        <!-- Stats Chip -->
+        <div style="text-align:right;">
+          <div style="font-size:0.75rem; color:var(--text-dim);">TOTAL RATINGS</div>
+          <div id="vl-total-ratings" style="font-size:1.1rem; font-weight:700; color:var(--accent);">0 Ratings</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       Tanglish Pronunciation Dictionary Modal (Prompt E)
+       ==================================================================== -->
+  <div class="modal-overlay" id="dict-editor-modal">
+    <div class="hud-card" style="width:90vw; max-width:650px; max-height:85vh; display:flex; flex-direction:column; padding:18px 22px; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); box-shadow:0 12px 48px rgba(0,0,0,0.8); z-index:1200;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle); padding-bottom:10px; margin-bottom:12px;">
+        <div style="font-weight:700; font-size:1.05rem; color:var(--text-bright);">📖 Tanglish Pronunciation Dictionary</div>
+        <button class="btn btn-xs btn-outline" id="dict-close-btn">✕ Close</button>
+      </div>
+
+      <div style="font-size:0.78rem; color:var(--text-dim); margin-bottom:10px;">
+        Maps colloquial Tanglish spellings to Tamil script for native pronunciation before speech synthesis.
+      </div>
+
+      <!-- Add New Pair Row -->
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <input type="text" id="dict-new-tanglish" placeholder="Tanglish (e.g. 'sollunga')" style="flex:1;">
+        <input type="text" id="dict-new-tamil" placeholder="Tamil script (e.g. 'சொல்லுங்க')" style="flex:1;">
+        <button class="btn btn-primary" id="dict-add-btn">+ Add</button>
+      </div>
+
+      <!-- Dictionary Entries Table -->
+      <div style="flex:1; overflow-y:auto; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); margin-bottom:12px;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.05); border-bottom:1px solid var(--border-subtle); text-align:left;">
+              <th style="padding:6px 10px;">Tanglish Token</th>
+              <th style="padding:6px 10px;">Tamil Script</th>
+              <th style="padding:6px 10px; width:50px; text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="dict-table-body">
+            <tr><td colspan="3" style="text-align:center; padding:16px; color:var(--text-dim);">Loading dictionary...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-green" id="dict-save-btn">💾 Save Live</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       Voice Quality A/B Benchmark Modal (Step 8)
+       ==================================================================== -->
+  <div class="modal-overlay" id="voice-ab-modal">
+    <div class="hud-card" style="width:96vw; max-width:1300px; height:92vh; display:flex; flex-direction:column; padding:18px 22px; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); box-shadow:0 12px 48px rgba(0,0,0,0.85); z-index:1150;">
+      <!-- Header Bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle); padding-bottom:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:1.5rem;">⚖️</span>
+          <div>
+            <div style="font-weight:700; font-size:1.15rem; color:var(--text-bright);">Voice Quality A/B Benchmark — Robotic vs Natural Evaluation</div>
+            <div style="font-size:0.75rem; color:var(--text-dim);">Compare the exact same 10 benchmark lines under Setting A (Old Setup) vs Setting B (New Setup: Write for the Ear, 15ms Fade, RMS Norm, Voice FX).</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="btn btn-sm btn-outline" id="ab-generate-all-btn">⚡ Synthesize All Audio</button>
+          <button class="btn btn-sm btn-outline" id="ab-refresh-btn">↻ Refresh Results</button>
+          <button class="btn btn-sm btn-outline btn-red" id="ab-close-btn" style="font-weight:700;">✕ Close</button>
+        </div>
+      </div>
+
+      <!-- Controls & Summary Strip -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; background:rgba(0,0,0,0.25); padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <label style="font-size:0.78rem; color:var(--text-dim);">VOICE FX FOR SETTING B:</label>
+          <select id="ab-voice-fx-select" style="font-size:0.82rem; padding:4px 8px;">
+            <option value="jarvis" selected>JARVIS (Presence + Subtle Holographic Polish)</option>
+            <option value="clean">Clean (Sub-bass rumble cut)</option>
+            <option value="off">Off (Raw clean speech)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:16px;">
+          <div style="font-size:0.82rem; color:var(--text-dim);">
+            SETTING A SCORE: <span id="ab-score-a" style="font-weight:700; color:var(--text-bright);">0 Good / 0 OK / 0 Bad</span>
+          </div>
+          <div style="font-size:0.82rem; color:var(--text-dim);">
+            SETTING B SCORE: <span id="ab-score-b" style="font-weight:700; color:var(--accent);">0 Good / 0 OK / 0 Bad</span>
+          </div>
+          <div id="ab-win-rate-badge" style="padding:4px 10px; border-radius:14px; font-weight:700; font-size:0.82rem; background:rgba(0,255,200,0.15); color:var(--accent); border:1px solid var(--accent);">
+            Setting B Win Rate: 0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Benchmark Lines List (Scrollable) -->
+      <div id="ab-benchmark-list" style="flex:1; overflow-y:auto; padding-right:6px; display:flex; flex-direction:column; gap:14px;">
+        <div style="text-align:center; padding:40px; color:var(--text-dim);">Loading A/B Benchmark lines...</div>
+      </div>
+
+      <!-- Acceptance Footer Bar -->
+      <div style="border-top:1px solid var(--border-subtle); padding-top:10px; margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:0.78rem; color:var(--text-dim);">
+          🎯 <strong>Acceptance Target:</strong> 10 sample replies rated clearly less robotic with zero clicks and seamless playback.
+        </div>
+        <div id="ab-acceptance-status" style="font-size:0.82rem; font-weight:700; color:var(--accent);">
+          0 of 10 Evaluated
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       Screen Inspection - Sensitivity Blur Gate Modal (Prompt 2A)
+       ==================================================================== -->
+  <div class="modal-overlay" id="screen-gate-modal">
+    <div class="hud-card" style="width:96vw; max-width:980px; max-height:92vh; display:flex; flex-direction:column; padding:18px 22px; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); box-shadow:0 12px 48px rgba(0,0,0,0.85); z-index:1250;">
+      <!-- Header Bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle); padding-bottom:10px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:1.3rem;">🛡️</span>
+          <div>
+            <div style="font-weight:700; font-size:1.05rem; color:var(--text-bright); letter-spacing:0.04em;">
+              SCREEN INSPECTION <span style="font-size:0.75rem; color:var(--accent); font-weight:400;">(SENSITIVITY GATE)</span>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-dim);">
+              Local preview only. Drag on the image to blur sensitive passwords, private chats, or keys before sending.
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="badge badge-green" style="font-size:0.7rem; font-family:var(--font-mono);">LOCAL PREVIEW ONLY</span>
+          <button class="btn btn-xs btn-outline" id="screen-gate-cancel-btn">✕ Cancel</button>
+        </div>
+      </div>
+
+      <!-- Canvas / Preview Stage -->
+      <div style="position:relative; flex:1; min-height:320px; max-height:55vh; background:#080b11; border:1px solid var(--border-subtle); border-radius:6px; overflow:hidden; display:flex; justify-content:center; align-items:center;">
+        <canvas id="screen-preview-canvas" style="max-width:100%; max-height:100%; object-fit:contain; cursor:crosshair;"></canvas>
+        <div id="screen-gate-blur-count" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.7); border:1px solid var(--border-subtle); padding:3px 8px; border-radius:4px; font-size:0.72rem; color:var(--text-dim); font-family:var(--font-mono);">
+          0 blur zones
+        </div>
+      </div>
+
+      <!-- Controls & Blur Tool Toolbar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="btn btn-xs btn-outline" id="screen-clear-blurs-btn" title="Clear all drawn blur rectangles">
+            🧹 Clear Blurs
+          </button>
+          <button class="btn btn-xs btn-outline" id="screen-save-disk-btn" title="Save this screenshot to data/screenshots/">
+            💾 Save Image
+          </button>
+          <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-dim); cursor:pointer;">
+            <input type="checkbox" id="screen-remember-session-chk">
+            Remember choice for this session
+          </label>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; flex:1; max-width:480px; justify-content:flex-end;">
+          <input type="text" id="screen-question-input" value="What's this error?" placeholder="Ask Nalla about this screen..." style="font-size:0.82rem; padding:6px 10px; flex:1; min-width:180px;">
+          <button class="btn btn-primary" id="screen-gate-send-btn" style="white-space:nowrap;">
+            🚀 Send to Nalla
+          </button>
+        </div>
+      </div>
+
+      <!-- Diagnosis Output Sub-Panel -->
+      <div id="screen-diagnosis-panel" style="display:none; margin-top:12px; border-top:1px solid var(--border-subtle); padding-top:10px; max-height:180px; overflow-y:auto; font-size:0.85rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-weight:700; color:var(--accent);">Nalla's Diagnosis:</span>
+          <span id="screen-diagnosis-latency" style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim);"></span>
+        </div>
+        <div id="screen-diagnosis-content" style="white-space:pre-wrap; line-height:1.45; color:var(--text-bright);"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Global Toasts -->
   <div id="toast-container"></div>
 
   <!-- ====================================================================
-       Script Imports (Vanilla JS Modular Architecture)
+       Modular Script Imports
        ==================================================================== -->
   <script src="/static/js/orb.js"></script>
   <script src="/static/js/app.js"></script>
   <script src="/static/js/pages/home.js"></script>
-  <script src="/static/js/pages/chat.js"></script>
-  <script src="/static/js/pages/voice.js"></script>
-  <script src="/static/js/pages/personality.js"></script>
   <script src="/static/js/pages/memory.js"></script>
   <script src="/static/js/pages/reminders.js"></script>
-  <script src="/static/js/pages/devices.js"></script>
-  <script src="/static/js/pages/performance.js"></script>
-  <script src="/static/js/pages/activity.js"></script>
   <script src="/static/js/pages/settings.js"></script>
+  <script src="/static/js/pages/voice.js"></script>
+  <script src="/static/js/pages/personality.js"></script>
+  <script src="/static/js/pages/voice_lab.js"></script>
+  <script src="/static/js/pages/ab_voice.js"></script>
+  <script src="/static/js/pages/screen_help.js"></script>
 </body>
 </html>

@@ -256,7 +256,7 @@ class TestWebDashboard:
         res = client.get("/")
         assert res.status_code == 200
         assert "NALLA SIVAM" in res.text
-        assert "Durable Memories" in res.text
+        assert "Memory" in res.text
 
     def test_memory_crud_api(self):
         client = TestClient(app)

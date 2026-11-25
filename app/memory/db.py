@@ -191,9 +191,184 @@ def _migration_002_fts_porter_tokenizer(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT INTO memories_fts(rowid, text) SELECT id, text FROM memories;")
 
 
+def _migration_003_tasks_and_summary_schema(conn: sqlite3.Connection) -> None:
+    """Migration 3: tasks table and conversation session summaries table."""
+    with conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done')),
+                priority INTEGER NOT NULL DEFAULT 2 CHECK (priority BETWEEN 1 AND 3),
+                due_at TEXT,
+                project TEXT,
+                created_at TEXT NOT NULL,
+                completed_at TEXT
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tasks_status_priority
+            ON tasks(status, priority, due_at, created_at);
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS conversation_summaries (
+                session_id TEXT PRIMARY KEY,
+                summary TEXT NOT NULL,
+                last_summarized_msg_id INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
+        """)
+
+
+def _migration_004_presence_and_proactive_schema(conn: sqlite3.Connection) -> None:
+    """Migration 4: Persistent scheduler jobs and proactive policy decision logs."""
+    with conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scheduled_jobs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                job_type TEXT NOT NULL,
+                schedule_expr TEXT NOT NULL,
+                category TEXT NOT NULL,
+                payload TEXT NOT NULL DEFAULT '{}',
+                next_run_at TEXT,
+                last_run_at TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_next_run
+            ON scheduled_jobs(enabled, next_run_at);
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS proactive_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT,
+                category TEXT NOT NULL,
+                action TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                content TEXT,
+                timestamp TEXT NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_proactive_logs_timestamp
+            ON proactive_logs(timestamp, category, action);
+        """)
+
+
+def _migration_005_memory_2_0_schema(conn: sqlite3.Connection) -> None:
+    """Migration 5: Memory 2.0 Entities, Facts, Candidate Inbox, and Daily Journals."""
+    with conn:
+        # 1. Entities table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS entities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL CHECK (type IN ('person', 'project', 'place', 'org', 'topic')),
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                aliases TEXT NOT NULL DEFAULT '[]',
+                summary TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                last_mentioned TEXT NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_entities_type_name
+            ON entities(type, name);
+        """)
+
+        # 2. Facts table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS facts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                text TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'conversation',
+                confidence REAL NOT NULL DEFAULT 1.0,
+                importance INTEGER NOT NULL DEFAULT 2 CHECK (importance BETWEEN 1 AND 5),
+                created_at TEXT NOT NULL,
+                last_confirmed_at TEXT NOT NULL,
+                last_used_at TEXT,
+                status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'superseded', 'deleted'))
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_facts_entity_status
+            ON facts(entity_id, status, last_confirmed_at);
+        """)
+
+        # 3. FTS5 table for facts
+        conn.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(
+                text,
+                content='facts',
+                content_rowid='id',
+                tokenize='porter unicode61'
+            );
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS facts_ai AFTER INSERT ON facts BEGIN
+                INSERT INTO facts_fts(rowid, text) VALUES (new.id, new.text);
+            END;
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS facts_ad AFTER DELETE ON facts BEGIN
+                INSERT INTO facts_fts(facts_fts, rowid, text) VALUES ('delete', old.id, old.text);
+            END;
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS facts_au AFTER UPDATE ON facts BEGIN
+                INSERT INTO facts_fts(facts_fts, rowid, text) VALUES ('delete', old.id, old.text);
+                INSERT INTO facts_fts(rowid, text) VALUES (new.id, new.text);
+            END;
+        """)
+
+        # 4. Candidate Memories (The Candidate Inbox)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS candidate_memories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_name TEXT NOT NULL,
+                entity_type TEXT NOT NULL DEFAULT 'topic',
+                text TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'learned',
+                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+                conflicts_with_fact_id INTEGER REFERENCES facts(id) ON DELETE SET NULL,
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_candidate_memories_status
+            ON candidate_memories(status, created_at);
+        """)
+
+        # 5. Daily Journals
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_journals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL UNIQUE,
+                content TEXT NOT NULL,
+                tasks_summary TEXT NOT NULL DEFAULT '',
+                notes_summary TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_daily_journals_date
+            ON daily_journals(date);
+        """)
+
+
 MIGRATIONS: list[tuple[int, Callable[[sqlite3.Connection], None]]] = [
     (1, _migration_001_initial_schema),
     (2, _migration_002_fts_porter_tokenizer),
+    (3, _migration_003_tasks_and_summary_schema),
+    (4, _migration_004_presence_and_proactive_schema),
+    (5, _migration_005_memory_2_0_schema),
 ]
 
 
